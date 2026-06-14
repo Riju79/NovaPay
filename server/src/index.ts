@@ -6,6 +6,7 @@ import authRoutes from './routes/auth.routes'
 import profileRoutes from './routes/profile.routes'
 import walletRoutes from './routes/wallet.routes'
 import sendMoneyRoutes from './routes/send-money.routes'
+import notificationRoutes from './routes/notification.routes'
 import { authenticateToken } from './middleware/auth'
 
 dotenv.config()
@@ -26,6 +27,7 @@ app.use('/auth', authRoutes)
 app.use('/profile', profileRoutes)
 app.use('/wallet', walletRoutes)
 app.use('/api/send-money', authenticateToken, sendMoneyRoutes)
+app.use('/api/notifications', authenticateToken, notificationRoutes)
 
 // Health check
 app.get('/', (req, res) => {

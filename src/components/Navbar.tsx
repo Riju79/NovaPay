@@ -39,7 +39,7 @@ export default function Navbar() {
     { name: 'Home', href: '/' },
     { name: 'Send Request', href: '/#send-request' },
     { name: 'Payment Mode', href: '/payment-mode' },
-    { name: 'Activity', href: '/#activity' },
+    { name: 'Activity', href: '/activity' },
   ]
 
   return (
