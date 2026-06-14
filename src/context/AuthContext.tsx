@@ -274,10 +274,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Automatically connect the user's wallet if they logged in and it's linked
   useEffect(() => {
-    if (user && user.wallet_address && publicKey !== user.wallet_address) {
+    const isWalletConnected = localStorage.getItem('novapay_wallet_connected') === 'true'
+    if (isWalletConnected && user && user.wallet_address && publicKey !== user.wallet_address) {
       setConnectedWallet(user.wallet_address)
     }
   }, [user, publicKey, setConnectedWallet])
+
+  // Synchronize client-side wallet disconnection to the backend
+  useEffect(() => {
+    const syncDisconnect = async () => {
+      if (!publicKey && user && user.wallet_connected) {
+        try {
+          await authFetch('/wallet/disconnect', { method: 'POST' })
+          setUser(prev => prev ? { ...prev, wallet_connected: false } : null)
+        } catch (err) {
+          console.error('Failed to sync wallet disconnect to backend:', err)
+        }
+      }
+    }
+    syncDisconnect()
+  }, [publicKey, user, authFetch])
 
   return (
     <AuthContext.Provider
