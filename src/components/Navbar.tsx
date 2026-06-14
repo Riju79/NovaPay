@@ -6,7 +6,7 @@ import { Menu, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import ConnectWalletButton from './ConnectWalletButton'
 import { useAuth } from '@/context/AuthContext'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 
 export default function Navbar() {
@@ -14,6 +14,14 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const { user, isAuthenticated } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
+
+  const handleHomeClick = (e: React.MouseEvent) => {
+    if (pathname === '/') {
+      e.preventDefault()
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }
 
   useEffect(() => {
     const handleScroll = () => {
@@ -43,7 +51,7 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
         {/* Left: Logo and Desktop Nav Links */}
         <div className="flex items-center gap-10">
-          <Link href="/" className="focus:outline-none" aria-label="NovaPay Home">
+          <Link href="/" onClick={handleHomeClick} className="focus:outline-none" aria-label="NovaPay Home">
             <Logo inverted={true} />
           </Link>
           <nav className="hidden md:flex items-center gap-8">
@@ -51,6 +59,7 @@ export default function Navbar() {
               <Link
                 key={link.name}
                 href={link.href}
+                onClick={link.name === 'Home' ? handleHomeClick : undefined}
                 className="text-sm font-medium text-white/60 hover:text-white transition-colors duration-200"
               >
                 {link.name}
@@ -108,7 +117,12 @@ export default function Navbar() {
                 <Link
                   key={link.name}
                   href={link.href}
-                  onClick={() => setMobileMenuOpen(false)}
+                  onClick={(e) => {
+                    setMobileMenuOpen(false)
+                    if (link.name === 'Home') {
+                      handleHomeClick(e)
+                    }
+                  }}
                   className="text-base font-medium text-white/60 hover:text-white transition-colors duration-200"
                 >
                   {link.name}
