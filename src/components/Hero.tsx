@@ -3,8 +3,10 @@
 import React from 'react'
 import { motion } from 'framer-motion'
 import { ArrowRight } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 export default function Hero() {
+  const router = useRouter()
   const generateGridSvg = () => {
     const activeCells = [
       { col: 1, row: 0, seed: 1 },
@@ -132,11 +134,17 @@ export default function Hero() {
           transition={{ duration: 0.8, delay: 0.3, ease: 'easeOut' }}
           className="mt-10 flex flex-col sm:flex-row gap-4 items-center"
         >
-          <button className="px-8 py-3.5 text-sm font-semibold text-white bg-black hover:bg-black/90 rounded-full transition-all duration-200 shadow-md shadow-black/10 hover:shadow-black/25 flex items-center gap-2 cursor-pointer group">
+          <button 
+            onClick={() => router.push('/payment-mode?tab=invoice')}
+            className="px-8 py-3.5 text-sm font-semibold text-white bg-black hover:bg-black/90 rounded-full transition-all duration-200 shadow-md shadow-black/10 hover:shadow-black/25 flex items-center gap-2 cursor-pointer group"
+          >
             Send Money
             <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-1" />
           </button>
-          <button className="px-8 py-3.5 text-sm font-semibold text-black border border-black/15 hover:border-black rounded-full transition-all duration-200 bg-transparent cursor-pointer">
+          <button 
+            onClick={() => router.push('/payment-mode?tab=pay')}
+            className="px-8 py-3.5 text-sm font-semibold text-black border border-black/15 hover:border-black rounded-full transition-all duration-200 bg-transparent cursor-pointer"
+          >
             Pay Tuition
           </button>
         </motion.div>

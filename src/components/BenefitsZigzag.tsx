@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { motion } from 'framer-motion'
+import { useRouter } from 'next/navigation'
 
 interface BenefitRow {
   title: string
@@ -10,15 +11,16 @@ interface BenefitRow {
 }
 
 export default function BenefitsZigzag() {
+  const router = useRouter()
   const benefits: BenefitRow[] = [
     {
-      title: 'Near-Zero FX Fees',
-      description: "Bypass traditional banking corridors. NovaPay leverages the Stellar blockchain's deep liquidity pools to convert currency at wholesale rates, saving students thousands.",
+      title: 'Zero Tuition Pay Fees',
+      description: "Pay your university fees directly without any platform markup or processing fees. NovaPay routes transactions with zero friction, saving you hundreds of dollars on banking overhead.",
       illustration: (
         <div className="w-full flex items-center justify-center overflow-hidden bg-[#FBFBFB]">
           <img
             src="/fx-rate.jpg"
-            alt="Airport terminal with a clock showing swift currency exchange corridors"
+            alt="Zero tuition payment fees visual concept"
             className="w-full h-auto block"
             loading="lazy"
           />
@@ -141,7 +143,10 @@ export default function BenefitsZigzag() {
             <p className="text-white/80 text-[10px] sm:text-xs md:text-sm font-medium leading-relaxed font-sans max-w-xs sm:max-w-sm">
               Generate secure payment requests instantly on the Stellar ledger. Send requests directly to parents or sponsors, allowing them to settle tuition balances instantly in local currency.
             </p>
-            <button className="mt-1 sm:mt-2 px-5 py-2.5 text-xs sm:text-sm font-semibold text-black bg-white hover:bg-white/95 rounded-full shadow-lg transition-all cursor-pointer hover:scale-[1.03] active:scale-[0.98]">
+            <button 
+              onClick={() => router.push('/payment-mode?tab=invoice')}
+              className="mt-1 sm:mt-2 px-5 py-2.5 text-xs sm:text-sm font-semibold text-black bg-white hover:bg-white/95 rounded-full shadow-lg transition-all cursor-pointer hover:scale-[1.03] active:scale-[0.98]"
+            >
               Send Request
             </button>
           </div>
