@@ -15,12 +15,36 @@ export default function Navbar() {
   const { user, isAuthenticated } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
+  const [activePath, setActivePath] = useState('')
+
+  // Sync active path with route changes
+  useEffect(() => {
+    if (pathname === '/') {
+      setActivePath(window.location.hash ? `/${window.location.hash}` : '/')
+    } else {
+      setActivePath(pathname)
+    }
+  }, [pathname])
+
+  // Sync active path with hash changes
+  useEffect(() => {
+    const handleHashChange = () => {
+      setActivePath(window.location.hash ? `/${window.location.hash}` : '/')
+    }
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [])
 
   const handleHomeClick = (e: React.MouseEvent) => {
     if (pathname === '/') {
       e.preventDefault()
       window.scrollTo({ top: 0, behavior: 'smooth' })
+      setActivePath('/')
     }
+  }
+
+  const handleLinkClick = (href: string) => {
+    setActivePath(href)
   }
 
   useEffect(() => {
@@ -55,16 +79,30 @@ export default function Navbar() {
             <Logo inverted={true} />
           </Link>
           <nav className="hidden md:flex items-center gap-8">
-            {navLinks.map((link) => (
-              <Link
-                key={link.name}
-                href={link.href}
-                onClick={link.name === 'Home' ? handleHomeClick : undefined}
-                className="text-sm font-medium text-white/60 hover:text-white transition-colors duration-200"
-              >
-                {link.name}
-              </Link>
-            ))}
+            {navLinks.map((link) => {
+              const active = link.href === '/' 
+                ? activePath === '/' 
+                : activePath === link.href || activePath.startsWith(link.href)
+              return (
+                <Link
+                  key={link.name}
+                  href={link.href}
+                  onClick={(e) => {
+                    handleLinkClick(link.href)
+                    if (link.name === 'Home') {
+                      handleHomeClick(e)
+                    }
+                  }}
+                  className={`text-sm font-semibold transition-all duration-300 cursor-pointer select-none ${
+                    active
+                      ? 'text-white'
+                      : 'text-white/60 hover:text-white/95'
+                  }`}
+                >
+                  {link.name}
+                </Link>
+              )
+            })}
           </nav>
         </div>
 
@@ -113,21 +151,31 @@ export default function Navbar() {
             className="absolute top-full left-0 right-0 bg-[#0A0A0A] border-b border-white/5 shadow-2xl flex flex-col px-6 py-6 gap-6 md:hidden"
           >
             <nav className="flex flex-col gap-4">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.name}
-                  href={link.href}
-                  onClick={(e) => {
-                    setMobileMenuOpen(false)
-                    if (link.name === 'Home') {
-                      handleHomeClick(e)
-                    }
-                  }}
-                  className="text-base font-medium text-white/60 hover:text-white transition-colors duration-200"
-                >
-                  {link.name}
-                </Link>
-              ))}
+              {navLinks.map((link) => {
+                const active = link.href === '/' 
+                  ? activePath === '/' 
+                  : activePath === link.href || activePath.startsWith(link.href)
+                return (
+                  <Link
+                    key={link.name}
+                    href={link.href}
+                    onClick={(e) => {
+                      handleLinkClick(link.href)
+                      setMobileMenuOpen(false)
+                      if (link.name === 'Home') {
+                        handleHomeClick(e)
+                      }
+                    }}
+                    className={`text-base font-semibold transition-all duration-300 cursor-pointer select-none ${
+                      active
+                        ? 'text-white'
+                        : 'text-white/60 hover:text-white/95'
+                    }`}
+                  >
+                    {link.name}
+                  </Link>
+                )
+              })}
             </nav>
             <div className="flex flex-col gap-3 pt-4 border-t border-white/5">
               {isAuthenticated && user ? (
