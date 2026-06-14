@@ -21,3 +21,29 @@ model User {
 
   @@map("users")
 }
+
+model Transaction {
+  id               String   @id @default(uuid())
+  sender_wallet    String
+  recipient_wallet String
+  amount           Float
+  asset_type       String   @default("XLM")
+  purpose          String
+  tx_hash          String?  @unique
+  status           String   @default("PENDING") // PENDING, SUCCESS, FAILED
+  created_at       DateTime @default(now())
+
+  @@map("transactions")
+}
+
+model Notification {
+  id             String   @id @default(uuid())
+  wallet_address String
+  title          String
+  message        String
+  type           String   @default("INFO") // SUCCESS, ERROR, INFO
+  is_read        Boolean  @default(false)
+  created_at     DateTime @default(now())
+
+  @@map("notifications")
+}

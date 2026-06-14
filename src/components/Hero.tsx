@@ -135,7 +135,7 @@ export default function Hero() {
           className="mt-10 flex flex-col sm:flex-row gap-4 items-center"
         >
           <button 
-            onClick={() => router.push('/payment-mode?tab=invoice')}
+            onClick={() => router.push('/send-money')}
             className="px-8 py-3.5 text-sm font-semibold text-white bg-black hover:bg-black/90 rounded-full transition-all duration-200 shadow-md shadow-black/10 hover:shadow-black/25 flex items-center gap-2 cursor-pointer group"
           >
             Send Money
