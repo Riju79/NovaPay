@@ -31,45 +31,54 @@ export const connectWallet = async (req: Request, res: Response) => {
     }
 
     // Check if user exists with this wallet
-    const user = await prisma.user.findUnique({ where: { wallet_address } })
+    let user = await prisma.user.findUnique({ where: { wallet_address } })
 
-    if (user) {
-      // Auto login
-      const { accessToken, refreshToken } = generateTokens(user.id)
-      
-      // Update connection status
-      if (!user.wallet_connected) {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { wallet_connected: true }
-        })
-      }
-
-      res.cookie('refreshToken', refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      })
-
-      return res.json({
-        exists: true,
-        accessToken,
-        user: {
-          id: user.id,
-          full_name: user.full_name,
-          email: user.email,
-          wallet_address: user.wallet_address,
-          wallet_connected: true,
-          email_verified: user.email_verified,
-          profile_picture: user.profile_picture,
-          created_at: user.created_at,
+    if (!user) {
+      // Create user automatically
+      const shortAddress = `${wallet_address.slice(0, 6)}...${wallet_address.slice(-6)}`
+      user = await prisma.user.create({
+        data: {
+          full_name: `Stellar User (${shortAddress})`,
+          email: `${wallet_address.toLowerCase()}@novapay.co`,
+          password_hash: '$2a$10$UnUsAbLePaSsWoRdHaShFoRwAlLeToNlYaUtH123456789', // placeholder
+          wallet_address,
+          wallet_connected: true
         }
       })
-    } else {
-      // Wallet address does not exist in DB -> client needs to redirect to signup
-      return res.json({ exists: false, wallet_address })
     }
+
+    // Auto login
+    const { accessToken, refreshToken } = generateTokens(user.id)
+    
+    // Update connection status
+    if (!user.wallet_connected) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { wallet_connected: true }
+      })
+    }
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    })
+
+    return res.json({
+      exists: true,
+      accessToken,
+      user: {
+        id: user.id,
+        full_name: user.full_name,
+        email: user.email,
+        wallet_address: user.wallet_address,
+        wallet_connected: true,
+        email_verified: user.email_verified,
+        profile_picture: user.profile_picture,
+        created_at: user.created_at,
+      }
+    })
   } catch (err: any) {
     console.error('Connect wallet error:', err)
     return res.status(500).json({ error: 'Internal server error connecting wallet' })
