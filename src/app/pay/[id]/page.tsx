@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useWallet } from '@/context/WalletContext'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import { API_URL } from '@/config'
 import { signTransaction } from '@stellar/freighter-api'
 import { Horizon } from '@stellar/stellar-sdk'
 import {
@@ -71,7 +72,7 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
     setIsLoadingDetails(true)
     setDetailsError(null)
     try {
-      const res = await fetch(`http://localhost:5000/api/payment-links/${id}`)
+      const res = await fetch(`${API_URL}/api/payment-links/${id}`)
       const data = await res.json()
       if (res.ok) {
         setDetails(data)
@@ -128,7 +129,7 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
     try {
       // Step 1: Prepare transaction from backend
       setPayStep(1)
-      const prepRes = await fetch(`http://localhost:5000/api/payment-links/${id}/prepare`, {
+      const prepRes = await fetch(`${API_URL}/api/payment-links/${id}/prepare`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -152,7 +153,7 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
 
       // Step 3: Submit transaction to Stellar network via backend
       setPayStep(3)
-      const submitRes = await fetch(`http://localhost:5000/api/payment-links/${id}/submit`, {
+      const submitRes = await fetch(`${API_URL}/api/payment-links/${id}/submit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

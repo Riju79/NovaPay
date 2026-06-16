@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useWallet } from '@/context/WalletContext'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import { API_URL } from '@/config'
 import {
   Wallet as WalletIcon,
   CreditCard,
@@ -94,7 +95,7 @@ export default function PaymentMethodsPage() {
     if (!token) return
     setIsLoadingMethods(true)
     try {
-      const res = await fetch('http://localhost:5000/api/payment-methods', {
+      const res = await fetch(`${API_URL}/api/payment-methods`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       const data = await res.json()
@@ -111,7 +112,7 @@ export default function PaymentMethodsPage() {
   const fetchBalances = async (address: string) => {
     setIsLoadingBalances(true)
     try {
-      const res = await fetch(`http://localhost:5000/api/payment-methods/balances?address=${address}`, {
+      const res = await fetch(`${API_URL}/api/payment-methods/balances?address=${address}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       const data = await res.json()
@@ -135,7 +136,7 @@ export default function PaymentMethodsPage() {
     setIsGeneratingLink(true)
     setGeneratedLink(null)
     try {
-      const res = await fetch('http://localhost:5000/api/payment-links', {
+      const res = await fetch(`${API_URL}/api/payment-links`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

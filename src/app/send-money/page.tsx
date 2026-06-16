@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useWallet } from '@/context/WalletContext'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import { API_URL } from '@/config'
 import { signTransaction } from '@stellar/freighter-api'
 import {
   Send,
@@ -83,7 +84,7 @@ export default function SendMoneyPage() {
   const fetchBalance = async () => {
     if (!token) return
     try {
-      const res = await fetch('http://localhost:5000/api/send-money/balance', {
+      const res = await fetch(`${API_URL}/api/send-money/balance`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const data = await res.json()
@@ -101,7 +102,7 @@ export default function SendMoneyPage() {
     if (!token) return
     setIsLoadingHistory(true)
     try {
-      const res = await fetch('http://localhost:5000/api/send-money/history', {
+      const res = await fetch(`${API_URL}/api/send-money/history`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       const data = await res.json()
@@ -127,7 +128,7 @@ export default function SendMoneyPage() {
     setRecipientError(null)
 
     try {
-      const res = await fetch('http://localhost:5000/api/send-money/validate-recipient', {
+      const res = await fetch(`${API_URL}/api/send-money/validate-recipient`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -171,7 +172,7 @@ export default function SendMoneyPage() {
     try {
       // Step 1: Create transaction on backend to fetch unsigned envelope XDR
       setSubStep(1)
-      const createRes = await fetch('http://localhost:5000/api/send-money/create-transaction', {
+      const createRes = await fetch(`${API_URL}/api/send-money/create-transaction`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -197,7 +198,7 @@ export default function SendMoneyPage() {
 
       // Step 3: Submit signed transaction envelope back to backend Horizon submitter
       setSubStep(3)
-      const submitRes = await fetch('http://localhost:5000/api/send-money/submit-transaction', {
+      const submitRes = await fetch(`${API_URL}/api/send-money/submit-transaction`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

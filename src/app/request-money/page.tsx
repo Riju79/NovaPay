@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useWallet } from '@/context/WalletContext'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import { API_URL } from '@/config'
 import { signTransaction } from '@stellar/freighter-api'
 import { StrKey, Horizon } from '@stellar/stellar-sdk'
 import {
@@ -132,7 +133,7 @@ export default function RequestMoneyPage() {
     if (!token) return
     setIsLoadingRequests(true)
     try {
-      const res = await fetch('http://localhost:5000/api/payment-requests', {
+      const res = await fetch(`${API_URL}/api/payment-requests`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       const data = await res.json()
@@ -190,7 +191,7 @@ export default function RequestMoneyPage() {
 
     setIsCreatingRequest(true)
     try {
-      const res = await fetch('http://localhost:5000/api/payment-requests', {
+      const res = await fetch(`${API_URL}/api/payment-requests`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -228,7 +229,7 @@ export default function RequestMoneyPage() {
   const handleDeclineRequest = async (id: string) => {
     setDecliningId(id)
     try {
-      const res = await fetch(`http://localhost:5000/api/payment-requests/${id}/decline`, {
+      const res = await fetch(`${API_URL}/api/payment-requests/${id}/decline`, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`
@@ -296,7 +297,7 @@ export default function RequestMoneyPage() {
     try {
       // Step 1: Prepare transaction (fetch unsigned XDR from server)
       setPayStep(1)
-      const prepareRes = await fetch(`http://localhost:5000/api/payment-requests/${req.id}/pay`, {
+      const prepareRes = await fetch(`${API_URL}/api/payment-requests/${req.id}/pay`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -325,7 +326,7 @@ export default function RequestMoneyPage() {
 
       // Step 3: Submit transaction to Stellar network
       setPayStep(3)
-      const submitRes = await fetch(`http://localhost:5000/api/payment-requests/${req.id}/pay`, {
+      const submitRes = await fetch(`${API_URL}/api/payment-requests/${req.id}/pay`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -357,7 +358,7 @@ export default function RequestMoneyPage() {
     setPayError(null)
     try {
       // Step 1: Prepare changeTrust transaction XDR
-      const prepareRes = await fetch('http://localhost:5000/wallet/trustline/usdc/prepare', {
+      const prepareRes = await fetch(`${API_URL}/wallet/trustline/usdc/prepare`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -379,7 +380,7 @@ export default function RequestMoneyPage() {
       const finalXdr = typeof signedXdr === 'string' ? signedXdr : (signedXdr as any).signedTxXdr
 
       // Step 3: Submit transaction to Stellar network
-      const submitRes = await fetch('http://localhost:5000/wallet/trustline/usdc/submit', {
+      const submitRes = await fetch(`${API_URL}/wallet/trustline/usdc/submit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

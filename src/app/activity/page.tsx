@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useWallet } from '@/context/WalletContext'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
+import { API_URL } from '@/config'
 import {
   Clock,
   Search,
@@ -86,10 +87,10 @@ export default function ActivityPage() {
     try {
       // Fetch transactions and notifications in parallel
       const [txRes, notifRes] = await Promise.all([
-        fetch('http://localhost:5000/api/send-money/history', {
+        fetch(`${API_URL}/api/send-money/history`, {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
-        fetch('http://localhost:5000/api/notifications', {
+        fetch(`${API_URL}/api/notifications`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
       ])
@@ -128,7 +129,7 @@ export default function ActivityPage() {
   const handleMarkAsRead = async (id: string) => {
     if (!token) return
     try {
-      const res = await fetch(`http://localhost:5000/api/notifications/${id}/read`, {
+      const res = await fetch(`${API_URL}/api/notifications/${id}/read`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${token}` }
       })
@@ -145,7 +146,7 @@ export default function ActivityPage() {
   const handleDeleteNotification = async (id: string) => {
     if (!token) return
     try {
-      const res = await fetch(`http://localhost:5000/api/notifications/${id}`, {
+      const res = await fetch(`${API_URL}/api/notifications/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       })
@@ -161,7 +162,7 @@ export default function ActivityPage() {
     if (!token) return
     if (!confirm('Are you sure you want to delete all notifications? This action cannot be undone.')) return
     try {
-      const res = await fetch('http://localhost:5000/api/notifications', {
+      const res = await fetch(`${API_URL}/api/notifications`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       })
