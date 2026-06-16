@@ -47,3 +47,45 @@ model Notification {
 
   @@map("notifications")
 }
+
+model PaymentRequest {
+  id               String   @id @default(uuid())
+  requester_wallet String
+  recipient_wallet String
+  amount           Float
+  asset            String   @default("USDC")
+  purpose          String
+  message          String?
+  status           String   @default("PENDING") // PENDING, COMPLETED, DECLINED, EXPIRED
+  transaction_hash String?  @unique
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  @@map("payment_requests")
+}
+
+model PaymentMethod {
+  id             String   @id @default(uuid())
+  user_id        String
+  provider       String   // e.g. "FREIGHTER"
+  wallet_address String   @unique
+  network        String   @default("TESTNET")
+  status         String   @default("ACTIVE")
+  is_default     Boolean  @default(false)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  @@map("payment_methods")
+}
+
+model PaymentLink {
+  id             String   @id @default(uuid())
+  creator_wallet String
+  amount         Float
+  asset          String   @default("USDC")
+  status         String   @default("ACTIVE")
+  created_at     DateTime @default(now())
+
+  @@map("payment_links")
+}
+

@@ -64,6 +64,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return fetch(`${API_URL}${url}`, {
       ...options,
       headers,
+      credentials: 'include',
     })
   }, [token])
 
@@ -73,6 +74,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const response = await fetch(`${API_URL}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
       })
 
       if (!response.ok) {
@@ -102,6 +104,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
+        credentials: 'include',
       })
 
       const data = await response.json()
@@ -137,6 +140,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ full_name, email, password, wallet_address }),
+        credentials: 'include',
       })
 
       const data = await response.json()
@@ -163,7 +167,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const logout = async () => {
     setIsLoading(true)
     try {
-      await fetch(`${API_URL}/auth/logout`, { method: 'POST' })
+      await fetch(`${API_URL}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      })
     } catch (err) {
       console.error('Logout request failed:', err)
     } finally {
@@ -209,6 +216,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ wallet_address }),
+        credentials: 'include',
       })
 
       const data = await response.json()
@@ -283,7 +291,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Synchronize client-side wallet disconnection to the backend
   useEffect(() => {
     const syncDisconnect = async () => {
-      if (!publicKey && user && user.wallet_connected) {
+      const isWalletConnected = localStorage.getItem('novapay_wallet_connected') === 'true'
+      if (!publicKey && user && user.wallet_connected && !isWalletConnected) {
         try {
           await authFetch('/wallet/disconnect', { method: 'POST' })
           setUser(prev => prev ? { ...prev, wallet_connected: false } : null)

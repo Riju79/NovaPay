@@ -24,8 +24,10 @@ export const signup = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'All fields (name, email, password, wallet address) are required' })
     }
 
+    const normalizedEmail = email.toLowerCase()
+
     // 2. Validate email uniqueness
-    const existingEmail = await prisma.user.findUnique({ where: { email } })
+    const existingEmail = await prisma.user.findUnique({ where: { email: normalizedEmail } })
     if (existingEmail) {
       return res.status(400).json({ error: 'An account with this email address already exists' })
     }
@@ -44,7 +46,7 @@ export const signup = async (req: Request, res: Response) => {
     const user = await prisma.user.create({
       data: {
         full_name,
-        email,
+        email: normalizedEmail,
         password_hash,
         wallet_address,
         wallet_connected: true,
@@ -90,15 +92,19 @@ export const login = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Email and password are required' })
     }
 
+    const normalizedEmail = email.toLowerCase()
+
     // 2. Retrieve user
-    const user = await prisma.user.findUnique({ where: { email } })
+    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } })
     if (!user) {
+      console.log(`[Login Alert] User not found for email: ${normalizedEmail}`);
       return res.status(401).json({ error: 'Invalid email or password credentials' })
     }
 
     // 3. Compare password hash
     const isMatch = await bcryptjs.compare(password, user.password_hash)
     if (!isMatch) {
+      console.log(`[Login Alert] Password mismatch for email: ${normalizedEmail}`);
       return res.status(401).json({ error: 'Invalid email or password credentials' })
     }
 

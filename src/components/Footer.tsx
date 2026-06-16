@@ -47,7 +47,7 @@ export default function Footer() {
                 <a href="#support" className="hover:text-white transition-colors duration-200">Submit Support Ticket</a>
               </li>
               <li>
-                <a href="#guides" className="hover:text-white transition-colors duration-200">Student Tuition Guides</a>
+                <a href="#guides" className="hover:text-white transition-colors duration-200">Cross-Border Payment Guides</a>
               </li>
               <li>
                 <a href="#network" className="hover:text-white transition-colors duration-200">Stellar Network Status</a>
@@ -61,7 +61,7 @@ export default function Footer() {
             <ul className="space-y-2.5 text-sm">
               <li className="flex items-center gap-2">
                 <Mail size={16} className="text-white/60" />
-                <a href="mailto:support@novapay.edu" className="hover:text-white transition-colors duration-200">support@novapay.edu</a>
+                <a href="mailto:support@novapay.co" className="hover:text-white transition-colors duration-200">support@novapay.co</a>
               </li>
               <li className="text-white/60 leading-relaxed">
                 NovaPay Headquarters<br />

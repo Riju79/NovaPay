@@ -10,8 +10,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "NovaPay — Cross-Border Student Payments on Stellar",
-  description: "Send tuition payments instantly with near-zero exchange fees using NovaPay, a cross-border student payment platform built on the Stellar blockchain.",
+  title: "NovaPay — Cross-Border Payments on Stellar",
+  description: "Send global payments instantly with near-zero exchange fees using NovaPay, a decentralized cross-border payment platform built on the Stellar blockchain.",
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },

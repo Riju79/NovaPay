@@ -43,7 +43,7 @@ export default function SendMoneyPage() {
   // Form states
   const [recipient, setRecipient] = useState('')
   const [amount, setAmount] = useState('')
-  const [purpose, setPurpose] = useState('Tuition')
+  const [purpose, setPurpose] = useState('Services')
 
   // Validation feedback states
   const [isValidRecipient, setIsValidRecipient] = useState<boolean | null>(null)
@@ -319,7 +319,7 @@ export default function SendMoneyPage() {
         <div className="mb-10">
           <h1 className="text-3xl font-extrabold tracking-tight font-sans">Send Money</h1>
           <p className="text-sm text-black/50 mt-1 font-medium font-sans animate-pulse">
-            Settle tuition, rent, or other student needs instantly on the Stellar Testnet.
+            Settle global invoices, services, or business expenses instantly on the Stellar Testnet.
           </p>
         </div>
 
@@ -450,9 +450,18 @@ export default function SendMoneyPage() {
                         value={amount}
                         onChange={(e) => setAmount(e.target.value)}
                         placeholder="100.00"
-                        className="w-full pl-12 pr-4 py-3 bg-white/[0.02] border border-white/10 rounded-xl text-sm text-white placeholder-white/20 focus:outline-none focus:border-white/30 transition-all font-mono"
+                        className={`w-full pl-12 pr-4 py-3 bg-white/[0.02] border rounded-xl text-sm text-white placeholder-white/20 focus:outline-none transition-all font-mono ${
+                          localBalance !== null && amount && parseFloat(amount) > parseFloat(localBalance)
+                            ? 'border-rose-500/40 focus:border-rose-500/60'
+                            : 'border-white/10 focus:border-white/30'
+                        }`}
                       />
                     </div>
+                    {localBalance !== null && amount && parseFloat(amount) > parseFloat(localBalance) && (
+                      <p className="text-[11px] text-rose-400 font-semibold pl-1">
+                        Insufficient balance to cover transaction.
+                      </p>
+                    )}
                   </div>
 
                   {/* Purpose dropdown select */}
@@ -464,11 +473,11 @@ export default function SendMoneyPage() {
                         onChange={(e) => setPurpose(e.target.value)}
                         className="w-full appearance-none px-4 py-3 bg-white/[0.02] border border-white/10 hover:border-white/20 rounded-xl text-xs text-white placeholder-white/20 focus:outline-none transition-all font-semibold font-sans cursor-pointer"
                       >
-                        <option value="Tuition" className="bg-[#0F0F0F] text-white font-semibold">Tuition Fees</option>
-                        <option value="Rent" className="bg-[#0F0F0F] text-white font-semibold">Rent Accommodation</option>
-                        <option value="Books" className="bg-[#0F0F0F] text-white font-semibold">Books & Supplies</option>
-                        <option value="Living Expenses" className="bg-[#0F0F0F] text-white font-semibold">Living Expenses</option>
-                        <option value="Emergency Fund" className="bg-[#0F0F0F] text-white font-semibold">Emergency Fund</option>
+                        <option value="Services" className="bg-[#0F0F0F] text-white font-semibold">Services & Contracts</option>
+                        <option value="Rent" className="bg-[#0F0F0F] text-white font-semibold">Business Rent / Lease</option>
+                        <option value="Supplies" className="bg-[#0F0F0F] text-white font-semibold">Supplies & Equipment</option>
+                        <option value="Logistics" className="bg-[#0F0F0F] text-white font-semibold">Travel & Logistics</option>
+                        <option value="Emergency" className="bg-[#0F0F0F] text-white font-semibold">Emergency Transfer</option>
                         <option value="Other" className="bg-[#0F0F0F] text-white font-semibold">Other Remittance</option>
                       </select>
                       <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" size={14} />
@@ -480,7 +489,7 @@ export default function SendMoneyPage() {
                 {/* Submit button */}
                 <button
                   type="submit"
-                  disabled={!recipient || !amount || isValidRecipient !== true || !publicKey}
+                  disabled={!recipient || !amount || isValidRecipient !== true || !publicKey || (localBalance !== null && parseFloat(amount) > parseFloat(localBalance))}
                   className="w-full py-4.5 bg-white text-black hover:bg-white/95 disabled:bg-white/20 disabled:text-black/45 font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-not-allowed uppercase tracking-wider active:scale-[0.99]"
                 >
                   <Send size={14} />

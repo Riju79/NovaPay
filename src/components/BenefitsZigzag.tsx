@@ -14,13 +14,13 @@ export default function BenefitsZigzag() {
   const router = useRouter()
   const benefits: BenefitRow[] = [
     {
-      title: 'Zero Tuition Payment Fees',
-      description: "Pay your university fees directly without any platform markup or processing fees. NovaPay routes transactions with zero friction, saving you hundreds of dollars on banking overhead.",
+      title: 'Zero Payment Markup',
+      description: "Pay your invoices directly without any platform markup or processing fees. NovaPay routes transactions with zero friction, saving you hundreds of dollars on banking overhead.",
       illustration: (
         <div className="w-full flex items-center justify-center overflow-hidden bg-[#FBFBFB]">
           <img
             src="/fx-rate.jpg"
-            alt="Zero tuition payment fees visual concept"
+            alt="Zero payment markup visual concept"
             className="w-full h-auto block"
             loading="lazy"
           />
@@ -29,7 +29,7 @@ export default function BenefitsZigzag() {
     },
     {
       title: 'On-Chain Transparency',
-      description: 'Every transfer is logged as a cryptographic receipt on-chain. Track payment routes, FX conversion points, and university clearance status in real-time.',
+      description: 'Every transfer is logged as a cryptographic receipt on-chain. Track payment routes, FX conversion points, and clearance status in real-time.',
       illustration: (
         <div className="w-full flex items-center justify-center overflow-hidden bg-[#FBFBFB]">
           <img
@@ -50,10 +50,10 @@ export default function BenefitsZigzag() {
         {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto">
           <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-black font-sans">
-            Designed for Modern International Education
+            Designed for Modern Cross-Border Payments
           </h2>
           <p className="mt-4 text-base md:text-lg text-black/60 font-sans leading-relaxed">
-            NovaPay coordinates tuition settlements directly on the Stellar blockchain network, removing the standard friction of global bank processing.
+            NovaPay coordinates payment settlements directly on the Stellar blockchain network, removing the standard friction of global bank processing.
           </p>
         </div>
 
@@ -114,10 +114,10 @@ export default function BenefitsZigzag() {
           <div className="text-center pt-8 md:pt-12 pb-10 md:pb-14 border-t border-black/5 flex flex-col items-center gap-6">
             <div className="flex flex-col gap-2">
               <p className="text-lg md:text-xl font-bold text-black font-sans">
-                Global education, unified currency.
+                Global transactions, unified network.
               </p>
               <p className="text-sm md:text-base text-black/50 font-medium font-sans">
-                Empowering international student journeys with the future of payment routing.
+                Empowering global financial journeys with the future of payment routing.
               </p>
             </div>
           </div>
@@ -129,7 +129,7 @@ export default function BenefitsZigzag() {
       <div className="w-full h-[260px] sm:h-[380px] md:h-[450px] overflow-hidden border-t border-black/5 relative">
         <img
           src="/tagline-bottom.jpg"
-          alt="Silhouetted travelers at a terminal representing global tuition journeys"
+          alt="Silhouetted travelers at a terminal representing global payment journeys"
           className="w-full h-full object-cover object-center block"
           loading="lazy"
         />
@@ -138,13 +138,13 @@ export default function BenefitsZigzag() {
         <div className="absolute inset-0 flex items-center justify-end p-6 sm:p-12 md:p-20 bg-black/25 md:bg-transparent">
           <div className="max-w-md text-right flex flex-col items-end gap-3 sm:gap-4">
             <h3 className="text-white text-lg sm:text-2xl font-black tracking-tight font-sans uppercase">
-              Tuition Request System
+              Global Request System
             </h3>
             <p className="text-white/80 text-[10px] sm:text-xs md:text-sm font-medium leading-relaxed font-sans max-w-xs sm:max-w-sm">
-              Generate secure payment requests instantly on the Stellar ledger. Send requests directly to parents or sponsors, allowing them to settle tuition balances instantly in local currency.
+              Generate secure payment requests instantly on the Stellar ledger. Send requests directly to clients or business partners, allowing them to settle balances instantly in local currency.
             </p>
             <button
-              onClick={() => router.push('/payment-mode?tab=invoice')}
+              onClick={() => router.push('/request-money')}
               className="mt-1 sm:mt-2 px-5 py-2.5 text-xs sm:text-sm font-semibold text-black bg-white hover:bg-white/95 rounded-full shadow-lg transition-all cursor-pointer hover:scale-[1.03] active:scale-[0.98]"
             >
               Send Request

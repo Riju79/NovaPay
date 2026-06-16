@@ -114,7 +114,7 @@ export default function Hero() {
           transition={{ duration: 0.8, delay: 0.1, ease: 'easeOut' }}
           className="text-4xl md:text-6xl font-black tracking-tight text-black leading-[1.1] max-w-3xl font-sans"
         >
-          Send Tuition Anywhere.<br />Instantly. On Stellar.
+          Send Money Anywhere.<br />Instantly. On Stellar.
         </motion.h1>
 
         {/* Subheading */}
@@ -124,7 +124,7 @@ export default function Hero() {
           transition={{ duration: 0.8, delay: 0.2, ease: 'easeOut' }}
           className="mt-6 text-lg md:text-xl text-black/60 max-w-xl font-medium font-sans leading-relaxed"
         >
-          Fast, transparent, and low-cost cross-border payments for students globally.
+          Fast, transparent, and low-cost cross-border payments globally.
         </motion.p>
 
         {/* CTAs */}
@@ -142,10 +142,10 @@ export default function Hero() {
             <ArrowRight size={16} className="transition-transform duration-200 group-hover:translate-x-1" />
           </button>
           <button 
-            onClick={() => router.push('/payment-mode?tab=pay')}
+            onClick={() => router.push('/payment-methods')}
             className="px-8 py-3.5 text-sm font-semibold text-black border border-black/15 hover:border-black rounded-full transition-all duration-200 bg-transparent cursor-pointer"
           >
-            Pay Tuition
+            Payment Methods
           </button>
         </motion.div>
       </div>

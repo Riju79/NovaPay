@@ -195,7 +195,7 @@ export const submitTransaction = async (req: AuthRequest, res: Response) => {
     await prisma.notification.create({
       data: {
         wallet_address: senderWallet,
-        title: 'Tuition Payment Sent',
+        title: 'Payment Sent',
         message: `Successfully sent ${paymentAmount} XLM to recipient address ${recipientWallet.slice(0, 10)}... for ${purpose}.`,
         type: 'SUCCESS'
       }

@@ -61,8 +61,8 @@ export default function Navbar() {
 
   const navLinks = [
     { name: 'Home', href: '/' },
-    { name: 'Send Request', href: '/#send-request' },
-    { name: 'Payment Mode', href: '/payment-mode' },
+    { name: 'Send Request', href: '/request-money' },
+    { name: 'Payment Methods', href: '/payment-methods' },
     { name: 'Activity', href: '/activity' },
   ]
 

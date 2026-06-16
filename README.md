@@ -1,6 +1,6 @@
 # NovaPay 💸
 
-NovaPay is a high-fidelity, decentralized cross-border remittance and tuition payment portal designed specifically for international students. Powered by the **Stellar blockchain network**, NovaPay bypasses traditional intermediary banking overhead to settle international tuition, accommodation rent, and book expenses in under 5 seconds with near-zero transaction fees.
+NovaPay is a high-fidelity, decentralized cross-border remittance and payment portal. Powered by the **Stellar blockchain network**, NovaPay bypasses traditional intermediary banking overhead to settle international invoices, services, and business expenses in under 5 seconds with near-zero transaction fees.
 
 ---
 
@@ -8,17 +8,17 @@ NovaPay is a high-fidelity, decentralized cross-border remittance and tuition pa
 
 * **Freighter Wallet Integration**: Connect and authenticate securely using the Freighter browser extension on the Stellar Testnet.
 * **Testnet Account Activation**: Check account ledger registration status and activate unfunded accounts instantly with a 10,000 XLM boost via Stellar Friendbot.
-* **Peer-to-Peer Tuition Settlement**: Construct, sign, and dispatch payment transactions directly to the Horizon node.
+* **Peer-to-Peer Invoice Settlement**: Construct, sign, and dispatch payment transactions directly to the Horizon node.
 * **Activity Log & System Alerts**: Audit transaction logs (sent and received payments) coupled with real-time backend success/failure notifications.
 * **Transaction Receipt Modal**: Click any transaction log to view a detailed cryptographic receipt, copy the transaction hash, or view it live on the StellarExpert Explorer.
-* **Payment Modes & Invoices**: Generate custom tuition invoices for parents or sponsors and execute path payments for direct settlement.
+* **Payment Modes & Invoices**: Generate custom billing invoices for clients or business partners and execute path payments for direct settlement.
 
 ---
 
 ## 📸 Platform Screenshots
 
 ### 1. Wallet Connected & Live Balance Displayed
-The profile dashboard manages the authenticated student session and displays Freighter wallet node details, the linked public key, and the current active XLM balance fetched directly from the Stellar Horizon Testnet.
+The profile dashboard manages the authenticated user session and displays Freighter wallet node details, the linked public key, and the current active XLM balance fetched directly from the Stellar Horizon Testnet.
 
 ![Stellar Wallet Connected & Active Balance Display](/public/screenshots/wallet-connected.png)
 

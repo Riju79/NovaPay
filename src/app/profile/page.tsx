@@ -397,9 +397,9 @@ export default function ProfilePage() {
 
             {/* Platform Settings details card */}
             <div className="bg-black/95 border border-white/10 rounded-3xl p-6 shadow-2xl shadow-black/35">
-              <h3 className="font-bold text-lg text-white mb-2">Student Account Privileges</h3>
+              <h3 className="font-bold text-lg text-white mb-2">NovaPay Account Privileges</h3>
               <p className="text-xs text-white/50 leading-relaxed font-medium">
-                Your NovaPay student profile is authenticated and connected directly to the Stellar blockchain. You can now use the platform to receive global fund requests from parents, make instant tuition payments with near-zero exchange costs, and audit your transaction history directly on the Stellar test ledger.
+                Your NovaPay profile is authenticated and connected directly to the Stellar blockchain. You can now use the platform to receive global fund requests, make instant cross-border payments with near-zero exchange costs, and audit your transaction history directly on the Stellar test ledger.
               </p>
             </div>
 

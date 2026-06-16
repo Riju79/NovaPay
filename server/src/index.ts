@@ -7,6 +7,9 @@ import profileRoutes from './routes/profile.routes'
 import walletRoutes from './routes/wallet.routes'
 import sendMoneyRoutes from './routes/send-money.routes'
 import notificationRoutes from './routes/notification.routes'
+import paymentRequestRoutes from './routes/payment-request.routes'
+import paymentMethodRoutes from './routes/payment-method.routes'
+import paymentLinkRoutes from './routes/payment-link.routes'
 import { authenticateToken } from './middleware/auth'
 
 dotenv.config()
@@ -28,6 +31,9 @@ app.use('/profile', profileRoutes)
 app.use('/wallet', walletRoutes)
 app.use('/api/send-money', authenticateToken, sendMoneyRoutes)
 app.use('/api/notifications', authenticateToken, notificationRoutes)
+app.use('/api/payment-requests', authenticateToken, paymentRequestRoutes)
+app.use('/api/payment-methods', authenticateToken, paymentMethodRoutes)
+app.use('/api/payment-links', paymentLinkRoutes)
 
 // Health check
 app.get('/', (req, res) => {

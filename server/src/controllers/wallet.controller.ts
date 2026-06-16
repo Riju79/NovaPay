@@ -2,6 +2,15 @@ import { Request, Response } from 'express'
 import prisma from '../config/db'
 import jwt from 'jsonwebtoken'
 import { AuthRequest } from '../middleware/auth'
+import {
+  Horizon,
+  TransactionBuilder,
+  Account,
+  Asset,
+  Operation,
+  Networks,
+  Transaction as StellarTransaction
+} from '@stellar/stellar-sdk'
 
 // Helper to generate access and refresh JWT tokens
 const generateTokens = (userId: string) => {
@@ -103,5 +112,61 @@ export const getWalletStatus = async (req: AuthRequest, res: Response) => {
   } catch (err: any) {
     console.error('Get wallet status error:', err)
     return res.status(500).json({ error: 'Internal server error fetching wallet status' })
+  }
+}
+
+const horizonServer = new Horizon.Server('https://horizon-testnet.stellar.org')
+const USDC_ASSET = new Asset('USDC', 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5')
+
+export const prepareUSDCTrustline = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.userId) {
+      return res.status(401).json({ error: 'Unauthorized' })
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: req.userId } })
+    if (!user || !user.wallet_address) {
+      return res.status(400).json({ error: 'User does not have a connected wallet' })
+    }
+
+    // Load account sequence
+    const account = await horizonServer.loadAccount(user.wallet_address)
+    const sourceAccount = new Account(user.wallet_address, account.sequence)
+
+    const transaction = new TransactionBuilder(sourceAccount, {
+      fee: '100',
+      networkPassphrase: Networks.TESTNET
+    })
+      .addOperation(
+        Operation.changeTrust({
+          asset: USDC_ASSET
+        })
+      )
+      .setTimeout(300)
+      .build()
+
+    const xdr = transaction.toEnvelope().toXDR('base64')
+    return res.json({ xdr })
+  } catch (err: any) {
+    console.error('Prepare trustline error:', err)
+    return res.status(500).json({ error: err.message || 'Failed to prepare trustline transaction' })
+  }
+}
+
+export const submitUSDCTrustline = async (req: AuthRequest, res: Response) => {
+  try {
+    const { xdr } = req.body
+    if (!xdr) {
+      return res.status(400).json({ error: 'Signed transaction XDR is required' })
+    }
+
+    const tx = new StellarTransaction(xdr, Networks.TESTNET)
+    const result = await horizonServer.submitTransaction(tx)
+
+    return res.json({ success: true, txHash: result.hash })
+  } catch (err: any) {
+    console.error('Submit trustline error:', err)
+    const errorDetails = err.response?.data?.extras?.result_codes?.transaction || err.message
+    return res.status(400).json({ error: `Trustline transaction failed: ${errorDetails}` })
   }
 }

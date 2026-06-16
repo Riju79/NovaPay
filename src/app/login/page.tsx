@@ -145,9 +145,9 @@ function AuthForm() {
         {/* Logo and Brand */}
         <div className="flex flex-col items-center text-center mb-8">
           <Logo inverted={true} />
-          <h2 className="text-xl font-bold text-white mt-4 tracking-tight">NovaPay Student Portal</h2>
+          <h2 className="text-xl font-bold text-white mt-4 tracking-tight">NovaPay Portal</h2>
           <p className="text-xs text-white/40 mt-1.5 max-w-[280px]">
-            Make tuition payments globally with near-zero transfer fees
+            Make cross-border payments globally with near-zero transfer fees
           </p>
         </div>
 
@@ -202,7 +202,7 @@ function AuthForm() {
                   type="email"
                   value={signInEmail}
                   onChange={(e) => setSignInEmail(e.target.value)}
-                  placeholder="name@university.edu"
+                  placeholder="name@example.com"
                   className="w-full pl-10 pr-4 py-3 bg-white/[0.02] border border-white/10 rounded-xl text-sm text-white placeholder-white/20 focus:outline-none focus:border-white/30 transition-all font-medium"
                 />
               </div>
@@ -233,7 +233,7 @@ function AuthForm() {
                 <Loader2 className="w-4 h-4 animate-spin text-black" />
               ) : (
                 <>
-                  <span>Sign In</span>
+                  <span>Log In</span>
                   <ArrowRight size={14} />
                 </>
               )}
@@ -285,7 +285,7 @@ function AuthForm() {
                   type="email"
                   value={signUpEmail}
                   onChange={(e) => setSignUpEmail(e.target.value)}
-                  placeholder="alex@university.edu"
+                  placeholder="alex@example.com"
                   className="w-full pl-10 pr-4 py-3 bg-white/[0.02] border border-white/10 rounded-xl text-sm text-white placeholder-white/20 focus:outline-none focus:border-white/30 transition-all font-medium"
                 />
               </div>
@@ -389,7 +389,7 @@ function AuthForm() {
                 }}
                 className="text-white hover:underline font-bold cursor-pointer"
               >
-                Sign In
+                Log In
               </button>
             </p>
           </form>
