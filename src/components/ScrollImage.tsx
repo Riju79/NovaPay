@@ -14,9 +14,9 @@ export default function ScrollImage() {
 
   // Create smooth physics spring-based progress
   const smoothProgress = useSpring(scrollYProgress, {
-    damping: 30,
-    stiffness: 70,
-    mass: 1,
+    damping: 25,
+    stiffness: 120,
+    mass: 0.5,
     restDelta: 0.001
   })
 
