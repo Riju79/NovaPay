@@ -15,7 +15,6 @@ import {
   ExternalLink,
   Loader2,
   AlertTriangle,
-  QrCode,
   Link2,
   Sparkles,
   ShieldAlert,
@@ -66,7 +65,6 @@ export default function PaymentMethodsPage() {
 
   // UI Modals
   const [showAddressModal, setShowAddressModal] = useState(false)
-  const [showQrModal, setShowQrModal] = useState(false)
 
   // Redirect to login if user is not authenticated
   useEffect(() => {
@@ -270,7 +268,7 @@ export default function PaymentMethodsPage() {
         <div className="mb-10">
           <h1 className="text-3xl font-extrabold tracking-tight font-sans">Payment Methods</h1>
           <p className="text-sm text-black/50 mt-1 font-medium font-sans">
-            Connect Stellar wallets, manage default funding, generate secure QR payment templates, and create shareable payment links.
+            Connect Stellar wallets, manage default funding, and create shareable payment links.
           </p>
         </div>
 
@@ -506,55 +504,8 @@ export default function PaymentMethodsPage() {
             )}
           </div>
 
-          {/* Right panel: QR Payment details & Coming Soon sources */}
+          {/* Right panel: Alternative funding sources */}
           <div className="space-y-8">
-            {/* QR Payment Code Card */}
-            {publicKey ? (
-              <div className="bg-black/95 border border-white/10 rounded-3xl p-6 text-white shadow-2xl flex flex-col items-center text-center">
-                <QrCode className="text-white/60 mb-2" size={20} />
-                <h3 className="font-bold text-sm uppercase tracking-wide">Wallet QR Code</h3>
-                <p className="text-[11px] text-white/40 mt-1 mb-4 leading-normal">
-                  Show this QR code to payers to quickly receive funds directly on Stellar.
-                </p>
-
-                <div className="bg-white p-3 rounded-2xl border border-white/10 shadow-lg relative group">
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${publicKey}`}
-                    alt="Wallet Payment Address QR Code"
-                    width={160}
-                    height={160}
-                    className="block"
-                  />
-                  <button
-                    onClick={() => setShowQrModal(true)}
-                    className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-xs font-bold rounded-2xl transition-opacity cursor-pointer duration-200"
-                  >
-                    View QR Template
-                  </button>
-                </div>
-
-                <div className="w-full mt-4 border-t border-white/10 pt-4 flex justify-between items-center text-xs">
-                  <span className="text-white/40 font-mono">{publicKey.slice(0, 6)}...{publicKey.slice(-6)}</span>
-                  <button
-                    onClick={handleCopyAddress}
-                    className="inline-flex items-center gap-1.5 text-xs text-white/60 hover:text-white transition-colors cursor-pointer"
-                  >
-                    {copiedAddress ? (
-                      <>
-                        <Check size={12} className="text-emerald-400" />
-                        <span className="text-emerald-400 font-bold">Copied!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy size={12} />
-                        <span>Copy Address</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
             {/* Other Payment Sources (Coming Soon) */}
             <div className="bg-black/95 border border-white/10 rounded-3xl p-6 text-white shadow-2xl space-y-4">
               <h3 className="font-bold text-xs uppercase tracking-wider text-white/40">Alternative Sources</h3>
@@ -622,46 +573,7 @@ export default function PaymentMethodsPage() {
         </div>
       )}
 
-      {/* QR Code expansion modal */}
-      {showQrModal && publicKey && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#0F0F0F] border border-white/10 w-full max-w-md rounded-2xl p-8 shadow-2xl text-white flex flex-col items-center text-center">
-            <h3 className="text-base font-bold text-white mb-2">Invoice QR Template</h3>
-            <p className="text-xs text-white/40 mb-6 max-w-xs">
-              Direct scan resolves this address on Stellar horizon and pre-funds XLM or USDC settlements.
-            </p>
 
-            <div className="bg-white p-5 rounded-3xl border border-white/10 shadow-2xl mb-6">
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${publicKey}`}
-                alt="Enlarged Wallet QR Code"
-                width={220}
-                height={220}
-                className="block"
-              />
-            </div>
-
-            <div className="w-full bg-white/[0.02] border border-white/5 rounded-xl p-3 font-mono text-[10px] break-all text-white/70">
-              {publicKey}
-            </div>
-
-            <div className="flex gap-3 pt-6 w-full">
-              <button
-                onClick={handleCopyAddress}
-                className="flex-1 py-2.5 text-xs font-bold border border-white/10 hover:bg-white/5 rounded-lg text-white/70 hover:text-white cursor-pointer"
-              >
-                Copy Address
-              </button>
-              <button
-                onClick={() => setShowQrModal(false)}
-                className="flex-1 py-2.5 bg-white text-black font-bold text-xs rounded-lg hover:bg-white/90 transition-all cursor-pointer"
-              >
-                Close template
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <Footer />
     </div>
