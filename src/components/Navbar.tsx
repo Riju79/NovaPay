@@ -108,17 +108,6 @@ export default function Navbar() {
 
         {/* Right: Buttons (Desktop) */}
         <div className="hidden md:flex items-center gap-4">
-          {isAuthenticated && user && (
-            <button 
-              onClick={() => router.push('/profile')}
-              className="flex items-center gap-2.5 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 hover:border-white/20 transition-all cursor-pointer"
-            >
-              <div className="w-7 h-7 rounded-full bg-white/10 border border-white/20 flex items-center justify-center font-bold text-xs text-white">
-                {user.full_name.charAt(0).toUpperCase()}
-              </div>
-              <span className="text-xs font-semibold text-white/95 pr-1.5">{user.full_name.split(' ')[0]}</span>
-            </button>
-          )}
           <ConnectWalletButton />
         </div>
 
@@ -171,17 +160,6 @@ export default function Navbar() {
               })}
             </nav>
             <div className="flex flex-col gap-3 pt-4 border-t border-white/5">
-              {isAuthenticated && user && (
-                <button
-                  onClick={() => {
-                    setMobileMenuOpen(false)
-                    router.push('/profile')
-                  }}
-                  className="w-full py-3 text-center text-sm font-semibold text-white bg-white/5 border border-white/10 rounded-full hover:border-white/20 hover:bg-white/10 transition-all cursor-pointer"
-                >
-                  Profile Dashboard ({user.full_name})
-                </button>
-              )}
               <div className="w-full flex justify-center">
                 <ConnectWalletButton />
               </div>
