@@ -131,7 +131,10 @@ export default function PaymentMethodsPage() {
   const handleGenerateLink = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!linkAmount || isNaN(parseFloat(linkAmount)) || parseFloat(linkAmount) <= 0) return
-    if (!token || !publicKey) return
+    if (!token || !publicKey) {
+      alert('Authentication token or connected wallet address is missing. Please reconnect and try again.')
+      return
+    }
 
     setIsGeneratingLink(true)
     setGeneratedLink(null)

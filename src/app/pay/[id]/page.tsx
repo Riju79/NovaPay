@@ -75,7 +75,11 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
       const res = await fetch(`${API_URL}/api/payment-links/${id}`)
       const data = await res.json()
       if (res.ok) {
-        setDetails(data)
+        if (data.status !== 'ACTIVE') {
+          setDetailsError('This payment link has already been settled or is inactive.')
+        } else {
+          setDetails(data)
+        }
       } else {
         setDetailsError(data.error || 'Payment link not found or expired.')
       }

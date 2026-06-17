@@ -214,6 +214,12 @@ export const submitPaymentLinkTx = async (req: Request, res: Response) => {
       }
     })
 
+    // Update payment link status to COMPLETED
+    await prisma.paymentLink.update({
+      where: { id },
+      data: { status: 'COMPLETED' }
+    })
+
     // Notify the link creator
     await prisma.notification.create({
       data: {
