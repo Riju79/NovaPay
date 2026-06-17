@@ -6,7 +6,8 @@
   "scripts": {
     "build": "npx prisma generate && tsc",
     "start": "npx prisma db push && node build/index.js",
-    "dev": "nodemon src/index.ts"
+    "dev": "nodemon src/index.ts",
+    "test": "node --test test/contracts.test.js"
   },
   "dependencies": {
     "@prisma/client": "^5.10.2",
