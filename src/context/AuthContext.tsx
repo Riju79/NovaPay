@@ -1,7 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { useWallet } from '@/context/WalletContext'
 import { API_URL } from '@/config'
 
@@ -40,6 +40,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+  const pathname = usePathname()
   const { publicKey, disconnect: disconnectWallet, setConnectedWallet } = useWallet()
 
   const clearError = useCallback(() => setError(null), [])
@@ -231,7 +232,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(data.user)
         localStorage.setItem('novapay_logged_in', 'true')
         localStorage.setItem('novapay_wallet_connected', 'true')
-        router.push('/')
+        if (!pathname?.startsWith('/pay/')) {
+          router.push('/')
+        }
       }
 
       return { exists: !!data.exists, wallet_address }
@@ -273,13 +276,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const isWalletConnected = localStorage.getItem('novapay_wallet_connected') === 'true'
       if (publicKey && !user && !isLoading && isWalletConnected) {
         const res = await syncWalletConnection(publicKey)
-        if (!res.exists) {
+        if (!res.exists && !pathname?.startsWith('/pay/')) {
           router.push('/login?mode=signup')
         }
       }
     }
     checkWalletAutoAuth()
-  }, [publicKey, user, isLoading])
+  }, [publicKey, user, isLoading, pathname])
 
   // Automatically connect the user's wallet if they logged in and it's linked
   useEffect(() => {
