@@ -11,7 +11,7 @@ NovaPay leverages **Soroban Smart Contracts** for trustless escrow agreements an
 *   **Public GitHub Repository**: [https://github.com/Riju79/NovaPay](https://github.com/Riju79/NovaPay)
 *   **Live Demo Link**: [https://novapay-remit.vercel.app](https://novapay-steel.vercel.app) *(Vercel Client)*
 *   **Live Backend API**: [https://novapay-w4zv.onrender.com](https://novapay-w4zv.onrender.com) *(Render Host)*
-*   **Demo Walkthrough Video (1–2 minutes)**: [Watch the Demo Video](https://www.youtube.com/watch?v=dQw4w9WgXcQ) *(Rickroll placeholder / Replace with actual video link)*
+*   **Demo Walkthrough Video (1–2 minutes)**: [Watch the Demo Video](https://youtu.be/SyGjRgLOz-I?si=NALjVZMkaTNyxD6G) *(Rickroll placeholder / Replace with actual video link)*
 
 ---
 
