@@ -107,17 +107,7 @@ export async function escrowGetState(
   const sim = await rpc.simulateTransaction(tx)
 
   if (SorobanRpc.Api.isSimulationError(sim)) {
-    const errMsg = (sim as any).error || '';
-    if (
-      errMsg.includes('MissingValue') ||
-      errMsg.includes('non-existing value for contract instance') ||
-      errMsg.includes('not found')
-    ) {
-      return undefined;
-    }
-    throw new Error(
-      `get_state simulation failed: ${errMsg}`,
-    )
+    throw new Error(`get_state simulation failed: ${(sim as any).error}`)
   }
 
   return (sim as SorobanRpc.Api.SimulateTransactionSuccessResponse).result
@@ -189,17 +179,7 @@ export async function recurringGetConfig(
   const sim = await rpc.simulateTransaction(tx)
 
   if (SorobanRpc.Api.isSimulationError(sim)) {
-    const errMsg = (sim as any).error || '';
-    if (
-      errMsg.includes('MissingValue') ||
-      errMsg.includes('non-existing value for contract instance') ||
-      errMsg.includes('not found')
-    ) {
-      return undefined;
-    }
-    throw new Error(
-      `get_config simulation failed: ${errMsg}`,
-    )
+    throw new Error(`get_config simulation failed: ${(sim as any).error}`)
   }
 
   return (sim as SorobanRpc.Api.SimulateTransactionSuccessResponse).result

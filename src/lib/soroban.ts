@@ -15,9 +15,13 @@ import { signTransaction } from '@stellar/freighter-api'
 export const SOROBAN_RPC_URL = 'https://soroban-testnet.stellar.org'
 export const NETWORK_PASSPHRASE = Networks.TESTNET
 export const ESCROW_CONTRACT_ID =
-  process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID || ''
+  process.env.NEXT_PUBLIC_ESCROW_CONTRACT_ID ||
+  'CAS3D5JIUAUD6URH6GP6OCT3URHGJWSS3QI4N66SS2JCFHEWUG2WNXT4'
+
+// WARNING — THIS CONTRACT ID IS 57 CHARACTERS AND INVALID. Replace with the correct 56-character address from stellar.expert/explorer/testnet before submitting.
 export const RECURRING_CONTRACT_ID =
-  process.env.NEXT_PUBLIC_RECURRING_CONTRACT_ID || ''
+  process.env.NEXT_PUBLIC_RECURRING_CONTRACT_ID ||
+  'CACY457E42KQL7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5'
 
 // ─── RPC Singleton ────────────────────────────────────────────────────────────
 
@@ -89,20 +93,6 @@ export async function invokeContract(opts: {
   // Step 4: Simulate
   const sim = await rpc.simulateTransaction(tx)
   if (SorobanRpc.Api.isSimulationError(sim)) {
-    const errMsg = sim.error || '';
-    if (
-      errMsg.includes('MissingValue') ||
-      errMsg.includes('non-existing value for contract instance') ||
-      errMsg.includes('not found')
-    ) {
-      console.warn(
-        `[Soroban] Contract ${opts.contractId} is not deployed on this network. Falling back to mock success for demo/testing.`
-      )
-      return {
-        txHash: tx.hash().toString('hex'),
-        success: true,
-      }
-    }
     return { txHash: '', success: false, error: sim.error }
   }
 
