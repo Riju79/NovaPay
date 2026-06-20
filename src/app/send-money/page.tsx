@@ -8,6 +8,7 @@ import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import { API_URL } from '@/config'
 import { signTransaction } from '@stellar/freighter-api'
+import { escrowInitialize, escrowDeposit, escrowApprove, xlmToStroops, XLM_SAC_TESTNET } from '@/lib/contract'
 import {
   Send,
   User,
@@ -192,7 +193,8 @@ export default function SendMoneyPage() {
         networkPassphrase: "Test SDF Network ; September 2015"
       })
       if (typeof signResult === 'object' && (signResult as any).error) {
-        throw new Error((signResult as any).error)
+        const errObj = (signResult as any).error
+        throw new Error(typeof errObj === 'string' ? errObj : errObj.message || 'User rejected request or signing failed')
       }
       const signedXdr = typeof signResult === 'string' ? signResult : (signResult as any).signedTxXdr
 
@@ -212,8 +214,35 @@ export default function SendMoneyPage() {
         throw new Error(submitData.error || 'Stellar network transaction submission failed.')
       }
 
-      // Success
-      setTxHash(submitData.txHash)
+      // Success — run Escrow contract calls for Services payments
+      if (purpose === 'Services' && publicKey !== null) {
+        const initResult = await escrowInitialize({
+          callerPublicKey: publicKey,
+          payer: publicKey,
+          recipient: recipient,
+          arbiter: publicKey,
+          tokenAddress: XLM_SAC_TESTNET,
+          amountStroops: xlmToStroops(amount),
+        })
+        if (!initResult.success) {
+          throw new Error('Escrow initialization failed: ' + initResult.error)
+        }
+
+        const depositResult = await escrowDeposit(publicKey)
+        if (!depositResult.success) {
+          throw new Error('Escrow deposit failed: ' + depositResult.error)
+        }
+
+        const approveResult = await escrowApprove(publicKey)
+        if (!approveResult.success) {
+          throw new Error('Escrow approval failed: ' + approveResult.error)
+        }
+
+        setTxHash(approveResult.txHash)
+      } else {
+        setTxHash(submitData.txHash)
+      }
+
       setSubStep(4)
       setRecipient('')
       setAmount('')

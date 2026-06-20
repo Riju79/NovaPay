@@ -8,6 +8,7 @@ import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import { API_URL } from '@/config'
 import { signTransaction } from '@stellar/freighter-api'
+import { recurringInitialize, recurringCharge, xlmToStroops, XLM_SAC_TESTNET } from '@/lib/contract'
 import { StrKey, Horizon } from '@stellar/stellar-sdk'
 import {
   Share2,
@@ -320,7 +321,8 @@ export default function RequestMoneyPage() {
       })
 
       if (typeof signResult === 'object' && (signResult as any).error) {
-        throw new Error((signResult as any).error)
+        const errObj = (signResult as any).error
+        throw new Error(typeof errObj === 'string' ? errObj : errObj.message || 'User rejected request or signing failed')
       }
       const signedXdr = typeof signResult === 'string' ? signResult : (signResult as any).signedTxXdr
 
@@ -340,8 +342,33 @@ export default function RequestMoneyPage() {
         throw new Error(submitData.error || 'Stellar Horizon submission rejected.')
       }
 
-      // Success
-      setSuccessTxHash(submitData.txHash)
+      // Success — run Recurring Billing contract calls for Services payments (non-fatal)
+      let usedContractTxHash = false
+      if (req.purpose === 'Services' && publicKey !== null) {
+        const initResult = await recurringInitialize({
+          callerPublicKey: publicKey,
+          payer: publicKey,
+          payee: req.requester_wallet,
+          tokenAddress: XLM_SAC_TESTNET,
+          limitStroops: xlmToStroops(req.amount),
+          intervalSeconds: 2592000,
+        })
+        if (!initResult.success) {
+          console.warn('Recurring billing setup failed:', initResult.error)
+        } else {
+          const chargeResult = await recurringCharge(publicKey, xlmToStroops(req.amount))
+          if (!chargeResult.success) {
+            console.warn('Contract charge failed:', chargeResult.error)
+          } else {
+            setSuccessTxHash(chargeResult.txHash)
+            usedContractTxHash = true
+          }
+        }
+      }
+      if (!usedContractTxHash) {
+        setSuccessTxHash(submitData.txHash)
+      }
+
       setPayStep(4)
       fetchRequests()
     } catch (err: any) {
@@ -375,7 +402,8 @@ export default function RequestMoneyPage() {
         networkPassphrase: 'Test SDF Network ; September 2015'
       })
       if (typeof signedXdr === 'object' && (signedXdr as any).error) {
-        throw new Error((signedXdr as any).error)
+        const errObj = (signedXdr as any).error
+        throw new Error(typeof errObj === 'string' ? errObj : errObj.message || 'User rejected request or signing failed')
       }
       const finalXdr = typeof signedXdr === 'string' ? signedXdr : (signedXdr as any).signedTxXdr
 

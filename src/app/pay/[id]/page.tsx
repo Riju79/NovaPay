@@ -151,7 +151,8 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
         networkPassphrase: 'Test SDF Network ; September 2015'
       })
       if (typeof signResult === 'object' && (signResult as any).error) {
-        throw new Error((signResult as any).error)
+        const errObj = (signResult as any).error
+        throw new Error(typeof errObj === 'string' ? errObj : errObj.message || 'User rejected request or signing failed')
       }
       const signedXdr = typeof signResult === 'string' ? signResult : (signResult as any).signedTxXdr
 
