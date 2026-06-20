@@ -21,13 +21,13 @@ NovaPay's core decentralized finance operations are backed by Soroban smart cont
 
 ### 1. Trustless Escrow Contract (`novapay-escrow`)
 Allows payers to lock up USDC or XLM funds in a secure vault. The funds are only released to the recipient upon approval by the payer or an appointed arbiter. Paid funds can also be refunded back to the payer if canceled by the recipient or arbiter.
-*   **Deployment Address**: `CAS3D5JIUAUD6URH6GP6OCT3URHGJWSS3QI4N66SS2JCFHEWUG2WNTP4`
-*   **Contract Interaction Tx Hash**: `6ea27b0e1f4a84098aaa54611033f4593fccc1c5719ac44de9292b1f9da122e53`
+*   **Deployment Address**: `CCHANDK3VLOESOIXTOKQYRUKFDCN6N2RXGLVXIO37HUENPG2OJP3TYTC`
+*   **Contract Interaction Tx Hash**: `e776f9cafcf652fa8644a3d0be0fc8ef8585070a1891a2a7f035f41bc9cb3e23`
 
 ### 2. Pre-Authorized Recurring Billing Contract (`recurring-billing`)
 Allows payers to authorize a merchant (payee) to pull a fixed limit of tokens at periodic time intervals (e.g. 30-day billing cycle limit). The merchant triggers charges programmatically, and either party can cancel the plan at any time.
-*   **Deployment Address**: `CACY457E42KQL7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLKM7`
-*   **Contract Interaction Tx Hash**: `122e533c6e7bfc8163c25445bff5f185a00b536ea27b0e1f4a84098aaa54611033`
+*   **Deployment Address**: `CAZQWJOJ2JWR6URATQM5UO7WHIEPPZWIUJT4RFDNHB4ELEEO3AWW74AI`
+*   **Contract Interaction Tx Hash**: `2e3b98f27fc5e50c7b61662559feb2aaee01c490e658ac3744d009a6c67af856`
 
 ---
 
