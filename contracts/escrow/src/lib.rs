@@ -41,8 +41,19 @@ impl EscrowContract {
         token: Address,
         amount: i128,
     ) {
-        assert!(!env.storage().instance().has(&DataKey::State), "Contract is already initialized.");
+        // Require payer authorization before doing anything
+        payer.require_auth();
+
         assert!(amount > 0, "Escrow amount must be positive.");
+
+        // Allow re-initialization only if previous escrow is fully completed
+        if env.storage().instance().has(&DataKey::State) {
+            let existing: EscrowState = env.storage().instance().get(&DataKey::State).unwrap();
+            assert!(
+                existing.status == EscrowStatus::Approved || existing.status == EscrowStatus::Refunded,
+                "Previous escrow is still active. Wait for it to be approved or refunded before starting a new one."
+            );
+        }
 
         let state = EscrowState {
             payer,
