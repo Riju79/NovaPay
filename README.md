@@ -26,8 +26,8 @@ Allows payers to lock up USDC or XLM funds in a secure vault. The funds are only
 
 ### 2. Pre-Authorized Recurring Billing Contract (`recurring-billing`)
 Allows payers to authorize a merchant (payee) to pull a fixed limit of tokens at periodic time intervals (e.g. 30-day billing cycle limit). The merchant triggers charges programmatically, and either party can cancel the plan at any time.
-*   **Deployment Address**: `CAZQWJOJ2JWR6URATQM5UO7WHIEPPZWIUJT4RFDNHB4ELEEO3AWW74AI`
-*   **Contract Interaction Tx Hash**: `2e3b98f27fc5e50c7b61662559feb2aaee01c490e658ac3744d009a6c67af856`
+*   **Deployment Address**: `CBD43KTR6FUCF6HTHPTFZLAYVN3XAVELNXVUZKIZGSYXAZIB2A3EKM5Y`
+*   **Contract Interaction Tx Hash**: `b60f01f1a265744c19849f730d527feec33aa4252b0131b52762b9561f03484f`
 
 ---
 

@@ -21,7 +21,7 @@ export const ESCROW_CONTRACT_ID =
 
 export const RECURRING_CONTRACT_ID =
   (process.env.NEXT_PUBLIC_RECURRING_CONTRACT_ID ||
-  'CAZQWJOJ2JWR6URATQM5UO7WHIEPPZWIUJT4RFDNHB4ELEEO3AWW74AI').trim()
+  'CBD43KTR6FUCF6HTHPTFZLAYVN3XAVELNXVUZKIZGSYXAZIB2A3EKM5Y').trim()
 
 // ─── RPC Singleton ────────────────────────────────────────────────────────────
 

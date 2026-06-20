@@ -33,9 +33,20 @@ impl RecurringBillingContract {
         limit: i128,
         interval_seconds: u64,
     ) {
-        assert!(!env.storage().instance().has(&DataKey::Config), "Billing configuration already initialized.");
+        // Require payer authorization before doing anything
+        payer.require_auth();
+
         assert!(limit > 0, "Billing limit must be a positive value.");
         assert!(interval_seconds > 0, "Billing cycle interval must be greater than zero.");
+
+        // Allow re-initialization only if previous billing configuration is inactive
+        if env.storage().instance().has(&DataKey::Config) {
+            let existing: BillingSetup = env.storage().instance().get(&DataKey::Config).unwrap();
+            assert!(
+                !existing.is_active,
+                "Previous billing configuration is still active. Cancel it before starting a new one."
+            );
+        }
 
         let setup = BillingSetup {
             payer,
