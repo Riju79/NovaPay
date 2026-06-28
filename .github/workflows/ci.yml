@@ -93,7 +93,19 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # Frontend CD Check
+      - name: Check Vercel Configuration
+        id: vercel_check
+        run: |
+          if [ -z "${{ secrets.VERCEL_TOKEN }}" ]; then
+            echo "::warning::VERCEL_TOKEN is not configured. Skipping Vercel deployment."
+            echo "configured=false" >> $GITHUB_OUTPUT
+          else
+            echo "configured=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Deploy Frontend to Vercel
+        if: steps.vercel_check.outputs.configured == 'true'
         uses: amondnet/vercel-action@v25
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
@@ -102,6 +114,18 @@ jobs:
           vercel-args: '--prod'
           working-directory: ./
 
+      # Backend CD Check
+      - name: Check Render Configuration
+        id: render_check
+        run: |
+          if [ -z "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" ]; then
+            echo "::warning::RENDER_DEPLOY_HOOK_URL is not configured. Skipping Render deployment."
+            echo "configured=false" >> $GITHUB_OUTPUT
+          else
+            echo "configured=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Deploy Backend to Render
+        if: steps.render_check.outputs.configured == 'true'
         run: |
           curl -f "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
