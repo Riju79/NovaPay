@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, token};
+use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env};
 
 #[contracttype]
 #[derive(Clone, Debug)]
@@ -7,9 +7,9 @@ pub struct BillingSetup {
     pub payer: Address,
     pub payee: Address,
     pub token: Address,
-    pub limit: i128,              // Max amount allowed per billing cycle
-    pub interval_seconds: u64,    // Length of the billing cycle (e.g. 30 days = 2592000s)
-    pub last_charge_time: u64,    // Timestamp of the last successful charge
+    pub limit: i128,           // Max amount allowed per billing cycle
+    pub interval_seconds: u64, // Length of the billing cycle (e.g. 30 days = 2592000s)
+    pub last_charge_time: u64, // Timestamp of the last successful charge
     pub is_active: bool,
 }
 
@@ -37,7 +37,10 @@ impl RecurringBillingContract {
         payer.require_auth();
 
         assert!(limit > 0, "Billing limit must be a positive value.");
-        assert!(interval_seconds > 0, "Billing cycle interval must be greater than zero.");
+        assert!(
+            interval_seconds > 0,
+            "Billing cycle interval must be greater than zero."
+        );
 
         // Allow re-initialization only if previous billing configuration is inactive
         if env.storage().instance().has(&DataKey::Config) {
@@ -67,13 +70,16 @@ impl RecurringBillingContract {
         let mut setup = Self::get_config(&env);
         assert!(setup.is_active, "Billing subscription is inactive.");
         assert!(amount > 0, "Charge amount must be positive.");
-        assert!(amount <= setup.limit, "Charge amount exceeds the allowed billing cycle limit.");
+        assert!(
+            amount <= setup.limit,
+            "Charge amount exceeds the allowed billing cycle limit."
+        );
 
         // Authenticate payee signature (only merchant can trigger charge)
         setup.payee.require_auth();
 
         let current_time = env.ledger().timestamp();
-        
+
         // Ensure the correct cycle interval has elapsed since the last charge
         if setup.last_charge_time > 0 {
             let next_eligible_charge_time = setup.last_charge_time + setup.interval_seconds;
@@ -89,7 +95,7 @@ impl RecurringBillingContract {
             &env.current_contract_address(),
             &setup.payer,
             &setup.payee,
-            &amount
+            &amount,
         );
 
         // Record the last charge timestamp
@@ -101,7 +107,7 @@ impl RecurringBillingContract {
     pub fn cancel(env: Env, signer: Address) {
         signer.require_auth();
         let mut setup = Self::get_config(&env);
-        
+
         assert!(
             signer == setup.payer || signer == setup.payee,
             "Only the payer or the payee is authorized to cancel the billing plan."
@@ -114,14 +120,20 @@ impl RecurringBillingContract {
 
     /// Read function to fetch the current billing subscription state.
     pub fn get_config(env: &Env) -> BillingSetup {
-        env.storage().instance().get(&DataKey::Config).expect("Billing configuration not initialized.")
+        env.storage()
+            .instance()
+            .get(&DataKey::Config)
+            .expect("Billing configuration not initialized.")
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use soroban_sdk::{Env, Address, token, testutils::{Address as _, Ledger as _}};
+    use soroban_sdk::{
+        testutils::{Address as _, Ledger as _},
+        token, Address, Env,
+    };
 
     #[test]
     fn test_recurring_billing_flow() {
@@ -233,4 +245,3 @@ mod test {
         assert!(!config.is_active);
     }
 }
-

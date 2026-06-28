@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, Address, Env, token};
+use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env};
 
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -70,7 +70,11 @@ impl EscrowContract {
     /// Executed by the payer to deposit requested funds into the contract's vault address.
     pub fn deposit(env: Env) {
         let mut state = Self::get_state(&env);
-        assert_eq!(state.status, EscrowStatus::Created, "Escrow is not in the pending deposit state.");
+        assert_eq!(
+            state.status,
+            EscrowStatus::Created,
+            "Escrow is not in the pending deposit state."
+        );
 
         // Authenticate payer signature
         state.payer.require_auth();
@@ -88,7 +92,11 @@ impl EscrowContract {
     pub fn approve(env: Env, signer: Address) {
         signer.require_auth();
         let mut state = Self::get_state(&env);
-        assert_eq!(state.status, EscrowStatus::Deposited, "No deposited funds are available to release.");
+        assert_eq!(
+            state.status,
+            EscrowStatus::Deposited,
+            "No deposited funds are available to release."
+        );
 
         // Authorize access check: only payer or arbiter can release funds
         assert!(
@@ -98,7 +106,11 @@ impl EscrowContract {
 
         // Transfer funds from contract address to the recipient address
         let token_client = token::Client::new(&env, &state.token);
-        token_client.transfer(&env.current_contract_address(), &state.recipient, &state.amount);
+        token_client.transfer(
+            &env.current_contract_address(),
+            &state.recipient,
+            &state.amount,
+        );
 
         // Update status to Approved
         state.status = EscrowStatus::Approved;
@@ -109,7 +121,11 @@ impl EscrowContract {
     pub fn refund(env: Env, signer: Address) {
         signer.require_auth();
         let mut state = Self::get_state(&env);
-        assert_eq!(state.status, EscrowStatus::Deposited, "No deposited funds are available to refund.");
+        assert_eq!(
+            state.status,
+            EscrowStatus::Deposited,
+            "No deposited funds are available to refund."
+        );
 
         // Authorize access check: only recipient or arbiter can approve refunding
         assert!(
@@ -128,14 +144,17 @@ impl EscrowContract {
 
     /// Read function to fetch details of the current escrow setup.
     pub fn get_state(env: &Env) -> EscrowState {
-        env.storage().instance().get(&DataKey::State).expect("Contract is not initialized.")
+        env.storage()
+            .instance()
+            .get(&DataKey::State)
+            .expect("Contract is not initialized.")
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use soroban_sdk::{Env, Address, token, testutils::Address as _};
+    use soroban_sdk::{testutils::Address as _, token, Address, Env};
 
     #[test]
     fn test_escrow_lifecycle_approve() {
@@ -217,4 +236,3 @@ mod test {
         assert_eq!(token_client.balance(&payer), amount);
     }
 }
-
