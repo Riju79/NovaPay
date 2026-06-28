@@ -117,3 +117,120 @@ impl RecurringBillingContract {
         env.storage().instance().get(&DataKey::Config).expect("Billing configuration not initialized.")
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use soroban_sdk::{Env, Address, token, testutils::{Address as _, Ledger as _}};
+
+    #[test]
+    fn test_recurring_billing_flow() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let payer = Address::generate(&env);
+        let payee = Address::generate(&env);
+
+        let token_admin = Address::generate(&env);
+        let token_id = env.register_stellar_asset_contract(token_admin);
+        let token_client = token::Client::new(&env, &token_id);
+        let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
+
+        let contract_id = env.register_contract(None, RecurringBillingContract);
+        let client = RecurringBillingContractClient::new(&env, &contract_id);
+
+        let limit = 1000i128;
+        let interval = 3600u64; // 1 hour
+
+        // 1. Initialize subscription
+        client.initialize(&payer, &payee, &token_id, &limit, &interval);
+
+        let config = client.get_config();
+        assert_eq!(config.payer, payer);
+        assert_eq!(config.payee, payee);
+        assert_eq!(config.token, token_id);
+        assert_eq!(config.limit, limit);
+        assert_eq!(config.interval_seconds, interval);
+        assert_eq!(config.last_charge_time, 0);
+        assert!(config.is_active);
+
+        // Mint tokens to payer and approve recurring contract as spender
+        let balance = 5000i128;
+        token_admin_client.mint(&payer, &balance);
+        token_client.approve(&payer, &contract_id, &limit, &9999u32);
+
+        // 2. Perform first charge
+        let mut ledger_info = env.ledger().get();
+        ledger_info.timestamp = 1000;
+        env.ledger().set(ledger_info);
+        client.charge(&500i128);
+
+        let config = client.get_config();
+        assert_eq!(config.last_charge_time, 1000);
+        assert_eq!(token_client.balance(&payee), 500);
+        assert_eq!(token_client.balance(&payer), 4500);
+    }
+
+    #[test]
+    fn test_charge_next_cycle() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let payer = Address::generate(&env);
+        let payee = Address::generate(&env);
+
+        let token_admin = Address::generate(&env);
+        let token_id = env.register_stellar_asset_contract(token_admin);
+        let token_client = token::Client::new(&env, &token_id);
+        let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
+
+        let contract_id = env.register_contract(None, RecurringBillingContract);
+        let client = RecurringBillingContractClient::new(&env, &contract_id);
+
+        let limit = 1000i128;
+        let interval = 3600u64; // 1 hour
+
+        client.initialize(&payer, &payee, &token_id, &limit, &interval);
+        token_admin_client.mint(&payer, &2000i128);
+        token_client.approve(&payer, &contract_id, &2000i128, &9999u32);
+
+        // First charge
+        let mut ledger_info = env.ledger().get();
+        ledger_info.timestamp = 1000;
+        env.ledger().set(ledger_info.clone());
+        client.charge(&500i128);
+
+        // Charge again after interval has elapsed (timestamp 4600 >= 1000 + 3600)
+        ledger_info.timestamp = 4600;
+        env.ledger().set(ledger_info);
+        client.charge(&500i128);
+
+        let config = client.get_config();
+        assert_eq!(config.last_charge_time, 4600);
+        assert_eq!(token_client.balance(&payee), 1000);
+        assert_eq!(token_client.balance(&payer), 1000);
+    }
+
+    #[test]
+    fn test_cancel_subscription() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let payer = Address::generate(&env);
+        let payee = Address::generate(&env);
+
+        let token_admin = Address::generate(&env);
+        let token_id = env.register_stellar_asset_contract(token_admin);
+
+        let contract_id = env.register_contract(None, RecurringBillingContract);
+        let client = RecurringBillingContractClient::new(&env, &contract_id);
+
+        client.initialize(&payer, &payee, &token_id, &1000i128, &3600u64);
+
+        // Cancel subscription by payer
+        client.cancel(&payer);
+        let config = client.get_config();
+        assert!(!config.is_active);
+    }
+}
+

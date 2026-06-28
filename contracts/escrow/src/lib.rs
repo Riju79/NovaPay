@@ -131,3 +131,90 @@ impl EscrowContract {
         env.storage().instance().get(&DataKey::State).expect("Contract is not initialized.")
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use soroban_sdk::{Env, Address, token, testutils::Address as _};
+
+    #[test]
+    fn test_escrow_lifecycle_approve() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let payer = Address::generate(&env);
+        let recipient = Address::generate(&env);
+        let arbiter = Address::generate(&env);
+
+        let token_admin = Address::generate(&env);
+        let token_id = env.register_stellar_asset_contract(token_admin);
+        let token_client = token::Client::new(&env, &token_id);
+        let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
+
+        let contract_id = env.register_contract(None, EscrowContract);
+        let client = EscrowContractClient::new(&env, &contract_id);
+
+        let amount = 1000i128;
+        token_admin_client.mint(&payer, &amount);
+
+        // 1. Initialize
+        client.initialize(&payer, &recipient, &arbiter, &token_id, &amount);
+
+        let state = client.get_state();
+        assert_eq!(state.payer, payer);
+        assert_eq!(state.recipient, recipient);
+        assert_eq!(state.arbiter, arbiter);
+        assert_eq!(state.token, token_id);
+        assert_eq!(state.amount, amount);
+        assert_eq!(state.status, EscrowStatus::Created);
+
+        // 2. Deposit
+        client.deposit();
+        let state = client.get_state();
+        assert_eq!(state.status, EscrowStatus::Deposited);
+        assert_eq!(token_client.balance(&contract_id), amount);
+        assert_eq!(token_client.balance(&payer), 0);
+
+        // 3. Approve (payer releases funds)
+        client.approve(&payer);
+        let state = client.get_state();
+        assert_eq!(state.status, EscrowStatus::Approved);
+        assert_eq!(token_client.balance(&contract_id), 0);
+        assert_eq!(token_client.balance(&recipient), amount);
+    }
+
+    #[test]
+    fn test_escrow_lifecycle_refund() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let payer = Address::generate(&env);
+        let recipient = Address::generate(&env);
+        let arbiter = Address::generate(&env);
+
+        let token_admin = Address::generate(&env);
+        let token_id = env.register_stellar_asset_contract(token_admin);
+        let token_client = token::Client::new(&env, &token_id);
+        let token_admin_client = token::StellarAssetClient::new(&env, &token_id);
+
+        let contract_id = env.register_contract(None, EscrowContract);
+        let client = EscrowContractClient::new(&env, &contract_id);
+
+        let amount = 500i128;
+        token_admin_client.mint(&payer, &amount);
+
+        // 1. Initialize
+        client.initialize(&payer, &recipient, &arbiter, &token_id, &amount);
+
+        // 2. Deposit
+        client.deposit();
+
+        // 3. Refund (arbiter executes refund)
+        client.refund(&arbiter);
+        let state = client.get_state();
+        assert_eq!(state.status, EscrowStatus::Refunded);
+        assert_eq!(token_client.balance(&contract_id), 0);
+        assert_eq!(token_client.balance(&payer), amount);
+    }
+}
+

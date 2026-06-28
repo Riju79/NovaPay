@@ -7,31 +7,101 @@ on:
     branches: [ master ]
 
 jobs:
-  verify:
+  # Job 1: Verify, Test, and Build Soroban Smart Contracts (Rust)
+  smart-contracts:
+    name: Verify Smart Contracts (Soroban/Rust)
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
-        cache: 'npm'
+      - name: Set up Rust Toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: wasm32-unknown-unknown
+          rustflags: "" # Suppress target check-cfg warnings
 
-    - name: Install Client Dependencies
-      run: npm ci
+      - name: Check Formatting
+        run: |
+          cd contracts/escrow && cargo fmt -- --check
+          cd ../recurring_billing && cargo fmt -- --check
 
-    - name: Build Client (Next.js)
-      run: npm run build
+      - name: Lint Contracts
+        run: |
+          cd contracts/escrow && cargo clippy --all-targets -- -D warnings
+          cd ../recurring_billing && cargo clippy --all-targets -- -D warnings
 
-    - name: Install Server Dependencies
-      run: |
-        cd server
-        npm ci
+      - name: Run Contract Tests
+        run: |
+          cd contracts/escrow && cargo test
+          cd ../recurring_billing && cargo test
 
-    - name: Run Server Unit Tests
-      run: |
-        cd server
-        npm test
+      - name: Compile Contracts to WASM
+        run: |
+          cd contracts/escrow && cargo build --target wasm32-unknown-unknown --release
+          cd ../recurring_billing && cargo build --target wasm32-unknown-unknown --release
+
+      - name: Upload Escrow WASM Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: escrow-contract-wasm
+          path: contracts/escrow/target/wasm32-unknown-unknown/release/novapay_escrow.wasm
+
+      - name: Upload Recurring Billing WASM Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: recurring-billing-contract-wasm
+          path: contracts/recurring_billing/target/wasm32-unknown-unknown/release/novapay_recurring_billing.wasm
+
+  # Job 2: Verify, Lint, and Test Web App (Next.js Frontend & Node Backend)
+  web-app:
+    name: Verify Web Application (Next.js & Express)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Frontend Dependencies
+        run: npm ci
+
+      - name: Build Frontend (Next.js)
+        run: npm run build
+
+      - name: Install Server Dependencies
+        run: |
+          cd server
+          npm ci
+
+      - name: Run Server Unit Tests
+        run: |
+          cd server
+          npm test
+
+  # Job 3: Continuous Deployment (CD) - Deploy to Vercel and Render on master merge
+  deploy:
+    name: Deploy to Production
+    needs: [smart-contracts, web-app]
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Deploy Frontend to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+          working-directory: ./
+
+      - name: Deploy Backend to Render
+        run: |
+          curl -f "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
