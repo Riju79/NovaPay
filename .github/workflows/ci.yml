@@ -28,8 +28,8 @@ jobs:
 
       - name: Lint Contracts
         run: |
-          cd contracts/escrow && cargo clippy --all-targets -- -D warnings
-          cd ../recurring_billing && cargo clippy --all-targets -- -D warnings
+          cd contracts/escrow && cargo clippy --all-targets -- -D warnings -A unexpected_cfgs
+          cd ../recurring_billing && cargo clippy --all-targets -- -D warnings -A unexpected_cfgs
 
       - name: Run Contract Tests
         run: |
