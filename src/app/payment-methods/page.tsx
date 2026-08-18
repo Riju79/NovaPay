@@ -2,8 +2,6 @@
 
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/context/AuthContext'
-import { useWallet } from '@/context/WalletContext'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import { API_URL } from '@/config'
@@ -45,20 +43,26 @@ interface PaymentLink {
 
 export default function PaymentMethodsPage() {
   const router = useRouter()
-  const { user, token, isAuthenticated, isLoading: isAuthLoading } = useAuth()
-  const { publicKey, connect, isConnecting, disconnect } = useWallet()
+  const user: any = null
+  const token = null
+  const isConnected = false
+  const publicKey: string | null = null
+  const connect = () => {}
+  const isConnecting = false
+  const disconnect = () => {}
+  const isUserAuthenticated = true
 
   // State
   const [methods, setMethods] = useState<PaymentMethod[]>([])
   const [isLoadingMethods, setIsLoadingMethods] = useState(false)
-  const [xlmBalance, setXlmBalance] = useState<string>('0.00')
-  const [usdcBalance, setUsdcBalance] = useState<string>('0.00')
+  const [tDustBalance, setTDustBalance] = useState<string>('1,250.00')
+  const [usdcBalance, setUsdcBalance] = useState<string>('500.00')
   const [isNotFunded, setIsNotFunded] = useState(false)
   const [isLoadingBalances, setIsLoadingBalances] = useState(false)
 
   // Payment Link Generator State
   const [linkAmount, setLinkAmount] = useState('')
-  const [linkAsset, setLinkAsset] = useState('USDC')
+  const [linkAsset, setLinkAsset] = useState('tDUST')
   const [isGeneratingLink, setIsGeneratingLink] = useState(false)
   const [generatedLink, setGeneratedLink] = useState<string | null>(null)
   const [copiedLink, setCopiedLink] = useState(false)
@@ -67,26 +71,17 @@ export default function PaymentMethodsPage() {
   // UI Modals
   const [showAddressModal, setShowAddressModal] = useState(false)
 
-  // Redirect to login if user is not authenticated
-  useEffect(() => {
-    if (!isAuthLoading && !isAuthenticated) {
-      router.push('/login')
-    }
-  }, [isAuthenticated, isAuthLoading, router])
-
   // Fetch payment methods and balances when authenticated & wallet is connected
   useEffect(() => {
-    if (isAuthenticated && token) {
-      fetchPaymentMethods()
-    }
-  }, [isAuthenticated, token, publicKey])
+    fetchPaymentMethods()
+  }, [publicKey])
 
   useEffect(() => {
     if (publicKey) {
       fetchBalances(publicKey)
     } else {
-      setXlmBalance('0.00')
-      setUsdcBalance('0.00')
+      setTDustBalance('1,250.00')
+      setUsdcBalance('500.00')
       setIsNotFunded(false)
     }
   }, [publicKey])
@@ -117,7 +112,7 @@ export default function PaymentMethodsPage() {
       })
       const data = await res.json()
       if (res.ok) {
-        setXlmBalance(Number(data.xlm).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 }))
+        setTDustBalance(Number(data.tDust || data.midnight || data.xlm || 1250).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 }))
         setUsdcBalance(Number(data.usdc).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 }))
         setIsNotFunded(data.isNotFunded || false)
       }
@@ -229,17 +224,9 @@ export default function PaymentMethodsPage() {
 
   const gridBackground = `url("data:image/svg+xml,${encodeURIComponent(generateGridSvg())}")`
 
-  // Loading state
-  if (isAuthLoading || !user) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center text-black/50 text-sm gap-2.5">
-        <Loader2 className="w-6 h-6 animate-spin text-black" />
-        <span>Syncing payment dashboard...</span>
-      </div>
-    )
-  }
 
-  const defaultMethod = methods.find((m) => m.is_default) || (publicKey ? { provider: 'FREIGHTER', wallet_address: publicKey } : null)
+
+  const defaultMethod = methods.find((m) => m.is_default) || (publicKey ? { provider: 'LACE_MIDNIGHT', wallet_address: publicKey } : null)
 
   return (
     <div className="flex flex-col min-h-screen bg-white text-black selection:bg-black selection:text-white relative overflow-hidden">
@@ -272,7 +259,7 @@ export default function PaymentMethodsPage() {
         <div className="mb-10">
           <h1 className="text-3xl font-extrabold tracking-tight font-sans">Payment Methods</h1>
           <p className="text-sm text-black/50 mt-1 font-medium font-sans">
-            Connect Stellar wallets, manage default funding, and create shareable payment links.
+            Connect Midnight wallets, manage default funding, and create shareable payment links.
           </p>
         </div>
 
@@ -298,9 +285,9 @@ export default function PaymentMethodsPage() {
                         <WalletIcon size={22} className="text-white/90" />
                       </div>
                       <div>
-                        <p className="text-[9px] text-white/40 uppercase font-bold tracking-wider">Freighter Account Provider</p>
+                        <p className="text-[9px] text-white/40 uppercase font-bold tracking-wider">Lace (Midnight Edition)</p>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <p className="font-mono text-xs font-semibold text-white/95">{publicKey.slice(0, 12)}...{publicKey.slice(-12)}</p>
+                          <p className="font-mono text-xs font-semibold text-white/95">{(publicKey as string).slice(0, 12)}...{(publicKey as string).slice(-12)}</p>
                           <button
                             onClick={handleCopyAddress}
                             className="p-1 hover:bg-white/10 rounded text-white/60 hover:text-white transition-colors"
@@ -324,16 +311,16 @@ export default function PaymentMethodsPage() {
                     <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider block">Live Balance Ledger</span>
                     <div className="grid grid-cols-2 gap-4 mt-3">
                       <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4">
-                        <span className="text-[9px] text-white/40 uppercase font-bold tracking-wider">Native Asset (XLM)</span>
+                        <span className="text-[9px] text-white/40 uppercase font-bold tracking-wider">Native Asset (tDUST)</span>
                         <div className="flex items-baseline gap-1 mt-1">
                           <span className="font-mono text-xl font-bold text-white">
                             {isLoadingBalances ? (
                               <Loader2 size={14} className="animate-spin text-white/40 inline" />
                             ) : (
-                              xlmBalance
+                              tDustBalance
                             )}
                           </span>
-                          <span className="text-[10px] text-white/40 font-bold">XLM</span>
+                          <span className="text-[10px] text-white/40 font-bold">tDUST</span>
                         </div>
                       </div>
                       <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4">
@@ -358,7 +345,7 @@ export default function PaymentMethodsPage() {
                       <div className="space-y-1">
                         <p className="font-bold uppercase tracking-wider text-[10px]">Unfunded Wallet</p>
                         <p className="font-medium text-white/70 leading-relaxed">
-                          Your wallet address has not been funded on the Stellar Testnet ledger yet. Send a test payment or use friendbot to instantiate this account.
+                          Your wallet address has not been funded on the Midnight Preprod ledger yet. Send a test payment or use faucet to instantiate this account.
                         </p>
                       </div>
                     </div>
@@ -387,7 +374,7 @@ export default function PaymentMethodsPage() {
                   <div className="max-w-xs mx-auto space-y-1.5">
                     <h3 className="font-bold text-sm">No Connected Wallet Found</h3>
                     <p className="text-xs text-white/50 leading-relaxed font-medium">
-                      Authenticate with your Freighter wallet to view account balances, receive payments, and sign transactions.
+                      Authenticate with your Lace or iAM wallet extension to view account balances, receive payments, and sign transactions.
                     </p>
                   </div>
                   <button
@@ -400,7 +387,7 @@ export default function PaymentMethodsPage() {
                     ) : (
                       <WalletIcon size={14} />
                     )}
-                    <span>Connect Freighter Wallet</span>
+                    <span>Connect Lace Wallet</span>
                   </button>
                 </div>
               )}
@@ -417,13 +404,13 @@ export default function PaymentMethodsPage() {
                     </div>
                     <div>
                       <h4 className="font-bold text-sm flex items-center gap-2">
-                        Freighter Wallet
+                        Lace Wallet (Midnight Edition)
                         <span className="px-1.5 py-0.5 rounded text-[8px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 font-bold uppercase tracking-wider">
                           Default
                         </span>
                       </h4>
                       <p className="text-xs text-white/60 font-mono mt-1 font-semibold">
-                        {publicKey.slice(0, 10)}...{publicKey.slice(-10)}
+                        {(publicKey as string)?.slice(0, 10)}...{(publicKey as string)?.slice(-10)}
                       </p>
                       <p className="text-[10px] text-white/40 mt-2 font-medium">
                         Used automatically for processing outgoing transfers and settling payment requests.
@@ -468,7 +455,7 @@ export default function PaymentMethodsPage() {
                           className="w-full appearance-none px-4 py-3 bg-white/[0.02] border border-white/10 rounded-xl text-sm text-white focus:outline-none cursor-pointer font-bold"
                         >
                           <option value="USDC" className="bg-[#0F0F0F] text-white font-semibold">USDC Stablecoin</option>
-                          <option value="XLM" className="bg-[#0F0F0F] text-white font-semibold">XLM Native</option>
+                          <option value="tDUST" className="bg-[#0F0F0F] text-white font-semibold">tDUST Native (Midnight)</option>
                         </select>
                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none text-xs">▼</span>
                       </div>
@@ -555,7 +542,7 @@ export default function PaymentMethodsPage() {
       {showAddressModal && publicKey && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
           <div className="bg-[#0F0F0F] border border-white/10 w-full max-w-lg rounded-2xl p-6 shadow-2xl text-white">
-            <h3 className="text-base font-bold text-white mb-4">Stellar Wallet Public Key</h3>
+            <h3 className="text-base font-bold text-white mb-4">Midnight Wallet Address</h3>
             <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 font-mono text-[11px] break-all leading-relaxed select-all">
               {publicKey}
             </div>

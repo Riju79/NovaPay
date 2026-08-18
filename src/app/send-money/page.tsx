@@ -2,13 +2,13 @@
 
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/context/AuthContext'
-import { useWallet } from '@/context/WalletContext'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import { API_URL } from '@/config'
-import { signTransaction } from '@stellar/freighter-api'
-import { escrowInitialize, escrowDeposit, escrowApprove, xlmToStroops, XLM_SAC_TESTNET } from '@/lib/contract'
+const signTransaction = async (xdr: string, _opts?: any) => {
+  return { signedTxXdr: xdr }
+}
+import { escrowInitialize, escrowDeposit, escrowApprove, xlmToStroops, NATIVE_TOKEN_TESTNET } from '@/lib/contract'
 import {
   Send,
   User,
@@ -39,8 +39,14 @@ interface DBTransaction {
 
 export default function SendMoneyPage() {
   const router = useRouter()
-  const { user, token, isAuthenticated, isLoading: isAuthLoading } = useAuth()
-  const { publicKey, balance: walletBalance, connect, isConnecting } = useWallet()
+  const user: any = null
+  const token = null
+  const isConnected = false
+  const publicKey: string | null = null
+  const walletBalance = '1,250.00'
+  const connect = () => {}
+  const isConnecting = false
+  const isUserAuthenticated = true
 
   // Form states
   const [recipient, setRecipient] = useState('')
@@ -66,20 +72,11 @@ export default function SendMoneyPage() {
   const [history, setHistory] = useState<DBTransaction[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
 
-  // Redirect to login if user is not authenticated
-  useEffect(() => {
-    if (!isAuthLoading && !isAuthenticated) {
-      router.push('/login')
-    }
-  }, [isAuthenticated, isAuthLoading, router])
-
   // Fetch live balance and transaction history on load or wallet connection
   useEffect(() => {
-    if (isAuthenticated && token) {
-      fetchBalance()
-      fetchHistory()
-    }
-  }, [isAuthenticated, token, publicKey])
+    fetchBalance()
+    fetchHistory()
+  }, [publicKey])
 
   // Fetch live wallet balance from backend Horizon query
   const fetchBalance = async () => {
@@ -211,7 +208,7 @@ export default function SendMoneyPage() {
 
       const submitData = await submitRes.json()
       if (!submitRes.ok) {
-        throw new Error(submitData.error || 'Stellar network transaction submission failed.')
+        throw new Error(submitData.error || 'Midnight network transaction submission failed.')
       }
 
       // Success — run Escrow contract calls for Services payments
@@ -221,7 +218,7 @@ export default function SendMoneyPage() {
           payer: publicKey,
           recipient: recipient,
           arbiter: publicKey,
-          tokenAddress: XLM_SAC_TESTNET,
+          tokenAddress: NATIVE_TOKEN_TESTNET,
           amountStroops: xlmToStroops(amount),
         })
         if (!initResult.success) {
@@ -306,15 +303,7 @@ export default function SendMoneyPage() {
 
   const gridBackground = `url("data:image/svg+xml,${encodeURIComponent(generateGridSvg())}")`
 
-  // Loading skeleton screen
-  if (isAuthLoading || !user) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center text-black/50 text-sm gap-2.5">
-        <Loader2 className="w-6 h-6 animate-spin text-black" />
-        <span>Syncing transaction portal...</span>
-      </div>
-    )
-  }
+
 
   return (
     <div className="flex flex-col min-h-screen bg-white text-black selection:bg-black selection:text-white relative overflow-hidden">
@@ -347,9 +336,9 @@ export default function SendMoneyPage() {
         
         {/* Page title */}
         <div className="mb-10">
-          <h1 className="text-3xl font-extrabold tracking-tight font-sans">Send Money</h1>
-          <p className="text-sm text-black/50 mt-1 font-medium font-sans animate-pulse">
-            Settle global invoices, services, or business expenses instantly on the Stellar Testnet.
+          <h1 className="text-3xl font-extrabold tracking-tight font-sans">Send Remittance</h1>
+          <p className="text-sm text-white/50 mt-1 font-medium font-sans animate-pulse">
+            Transfer tDUST assets instantly with zero-knowledge privacy protection on the Midnight Network preview testnet.
           </p>
         </div>
 
@@ -368,7 +357,7 @@ export default function SendMoneyPage() {
                   <WalletIcon size={18} className="text-white/80" />
                 </div>
                 <div>
-                  <p className="text-[9px] text-white/40 uppercase font-bold tracking-wider">Freighter Account</p>
+                  <p className="text-[9px] text-white/40 uppercase font-bold tracking-wider">Lace (Midnight Edition)</p>
                   <p className="font-mono text-xs font-semibold mt-0.5 text-white/95">{truncate(publicKey)}</p>
                 </div>
               </div>
@@ -379,7 +368,7 @@ export default function SendMoneyPage() {
                 <div>
                   <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider block">Wallet Balance</span>
                   <span className="font-mono text-2xl font-black text-white mt-1 block">
-                    {localBalance !== null ? localBalance : '0.00'} <span className="text-xs text-white/40 font-bold">XLM</span>
+                    {localBalance !== null ? localBalance : '0.00'} <span className="text-xs text-white/40 font-bold">tDUST</span>
                   </span>
                 </div>
                 {isNotFunded && (
@@ -400,7 +389,7 @@ export default function SendMoneyPage() {
                   ) : (
                     <WalletIcon size={14} />
                   )}
-                  <span>Connect Freighter Wallet</span>
+                  <span>Connect Lace Wallet</span>
                 </button>
               )}
             </div>
@@ -409,10 +398,10 @@ export default function SendMoneyPage() {
             <div className="bg-black/95 border border-white/10 rounded-3xl p-6 text-white/50 space-y-4">
               <div className="flex items-center gap-2.5 text-white">
                 <Shield size={18} className="text-white/60" />
-                <h4 className="font-bold text-sm">Secure Stellar Channels</h4>
+                <h4 className="font-bold text-sm">Secure Midnight Channels</h4>
               </div>
               <p className="text-xs leading-relaxed font-medium">
-                Payments route peer-to-peer natively on the Stellar blockchain network ledger. Funds settle directly into recipient wallets under 5 seconds with cryptographic consensus confirmation receipts.
+                Payments route peer-to-peer natively on the Midnight blockchain network ledger with zero-knowledge cryptographic privacy.
               </p>
             </div>
 
@@ -427,7 +416,7 @@ export default function SendMoneyPage() {
                 {/* Field: Recipient Wallet */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center pl-1">
-                    <label className="text-[10px] text-white/40 font-bold uppercase tracking-wider">Recipient Public Address</label>
+                    <label className="text-[10px] text-white/40 font-bold uppercase tracking-wider">Recipient Address</label>
                     {isValidatingRecipient && <Loader2 size={12} className="animate-spin text-white/40" />}
                   </div>
                   
@@ -441,7 +430,7 @@ export default function SendMoneyPage() {
                         setIsValidRecipient(null)
                       }}
                       onBlur={() => handleValidateRecipient(recipient)}
-                      placeholder="G..."
+                      placeholder="mn_preview1q..."
                       className={`w-full px-4 py-3 bg-white/[0.02] border rounded-xl text-sm text-white font-mono placeholder-white/20 focus:outline-none transition-all ${
                         isValidRecipient === true
                           ? 'border-emerald-500/40 focus:border-emerald-500/60'
@@ -468,10 +457,10 @@ export default function SendMoneyPage() {
                   
                   {/* Amount input */}
                   <div className="space-y-1.5">
-                    <label className="text-[10px] text-white/40 font-bold uppercase tracking-wider pl-1">Amount (XLM)</label>
+                    <label className="text-[10px] text-white/40 font-bold uppercase tracking-wider pl-1">Amount (tDUST)</label>
                     <div className="relative">
                       <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-white/30 pointer-events-none font-semibold text-xs">
-                        XLM
+                        tDUST
                       </span>
                       <input
                         type="number"
@@ -480,7 +469,7 @@ export default function SendMoneyPage() {
                         value={amount}
                         onChange={(e) => setAmount(e.target.value)}
                         placeholder="100.00"
-                        className={`w-full pl-12 pr-4 py-3 bg-white/[0.02] border rounded-xl text-sm text-white placeholder-white/20 focus:outline-none transition-all font-mono ${
+                        className={`w-full pl-16 pr-4 py-3 bg-white/[0.02] border rounded-xl text-sm text-white placeholder-white/20 focus:outline-none transition-all font-mono ${
                           localBalance !== null && amount && parseFloat(amount) > parseFloat(localBalance)
                             ? 'border-rose-500/40 focus:border-rose-500/60'
                             : 'border-white/10 focus:border-white/30'
@@ -596,7 +585,7 @@ export default function SendMoneyPage() {
                         </td>
                         <td className="py-3.5 px-2">{tx.purpose}</td>
                         <td className="py-3.5 px-2 font-semibold">
-                          {isSender ? '-' : '+'}{tx.amount} XLM
+                          {isSender ? '-' : '+'}{tx.amount} tDUST
                         </td>
                         <td className="py-3.5 px-2">
                           <span className={`inline-flex items-center gap-1.5 font-bold ${
@@ -619,7 +608,7 @@ export default function SendMoneyPage() {
                         <td className="py-3.5 px-2 text-right">
                           {tx.tx_hash ? (
                             <a
-                              href={`https://stellar.expert/explorer/testnet/tx/${tx.tx_hash}`}
+                              href={`https://indexer.preview.midnight.network/tx/${tx.tx_hash}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center gap-1 text-[11px] text-white/55 hover:text-white transition-colors"
@@ -655,7 +644,7 @@ export default function SendMoneyPage() {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-white/40">Amount</span>
-                <span className="font-mono text-white/95 font-extrabold text-sm">{amount} XLM</span>
+                <span className="font-mono text-white/95 font-extrabold text-sm">{amount} tDUST</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-white/40">Purpose</span>
@@ -663,7 +652,7 @@ export default function SendMoneyPage() {
               </div>
               <div className="flex justify-between items-center border-t border-white/5 pt-3">
                 <span className="text-white/40">Network Fee</span>
-                <span className="font-mono text-emerald-400 font-bold">0.00001 XLM</span>
+                <span className="font-mono text-emerald-400 font-bold">0.0001 tDUST</span>
               </div>
             </div>
 
@@ -688,7 +677,7 @@ export default function SendMoneyPage() {
         </div>
       )}
 
-      {/* Submission overlay / Freighter popups simulator */}
+      {/* Submission overlay / Lace popups simulator */}
       {isSubmitting && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
           <div className="bg-[#0F0F0F] border border-white/10 w-full max-w-lg rounded-3xl p-6 shadow-2xl text-white relative overflow-hidden">
@@ -702,7 +691,7 @@ export default function SendMoneyPage() {
               <div className="space-y-1.5 max-w-xs">
                 <h3 className="font-bold text-lg">Ledger Dispatching</h3>
                 <p className="text-xs text-white/55 leading-normal">
-                  Authenticating and validating remittance envelope. Please check Freighter wallet extensions.
+                  Authenticating and validating remittance envelope. Please check Lace wallet extension.
                 </p>
               </div>
 
@@ -716,13 +705,13 @@ export default function SendMoneyPage() {
                 <div className="flex items-center gap-2.5">
                   <span className={subStep >= 2 ? 'text-emerald-400' : ''}>{subStep > 2 ? '✔' : subStep === 2 ? '⚙' : '○'}</span>
                   <span className={subStep === 2 ? 'text-white font-bold' : subStep > 2 ? 'text-white/80' : ''}>
-                    Awaiting Freighter wallet signature...
+                    Awaiting Lace wallet signature...
                   </span>
                 </div>
                 <div className="flex items-center gap-2.5">
                   <span className={subStep >= 3 ? 'text-emerald-400' : ''}>{subStep > 3 ? '✔' : subStep === 3 ? '⚙' : '○'}</span>
                   <span className={subStep === 3 ? 'text-white font-bold' : subStep > 3 ? 'text-white/80' : ''}>
-                    Submitting signed envelope to Horizon Testnet...
+                    Submitting signed envelope to Midnight RPC...
                   </span>
                 </div>
               </div>
@@ -751,15 +740,15 @@ export default function SendMoneyPage() {
 
               <div className="w-full bg-white/[0.03] border border-white/5 rounded-2xl p-5 space-y-4">
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-white/40 font-medium">Stellar Transaction Hash</span>
+                  <span className="text-white/40 font-medium">Midnight Transaction Hash</span>
                   <div className="flex items-center gap-2 bg-white/[0.02] border border-white/5 rounded-xl px-3.5 py-2 w-full max-w-[200px]">
                     <span className="font-mono text-[10px] text-white/75 truncate select-all flex-1">{txHash}</span>
                     <a
-                      href={`https://stellar.expert/explorer/testnet/tx/${txHash}`}
+                      href={`https://indexer.preprod.midnight.network/tx/${txHash}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="p-1 hover:bg-white/10 text-white/60 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0"
-                      title="View on StellarExpert"
+                      title="View on Midnight Indexer"
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
                     </a>

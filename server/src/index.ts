@@ -2,15 +2,12 @@ import express from 'express'
 import cors from 'cors'
 import morgan from 'morgan'
 import dotenv from 'dotenv'
-import authRoutes from './routes/auth.routes'
 import profileRoutes from './routes/profile.routes'
-import walletRoutes from './routes/wallet.routes'
 import sendMoneyRoutes from './routes/send-money.routes'
 import notificationRoutes from './routes/notification.routes'
 import paymentRequestRoutes from './routes/payment-request.routes'
 import paymentMethodRoutes from './routes/payment-method.routes'
 import paymentLinkRoutes from './routes/payment-link.routes'
-import { authenticateToken } from './middleware/auth'
 
 dotenv.config()
 
@@ -20,7 +17,6 @@ const PORT = process.env.PORT || 5000
 // Middleware
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow any origin dynamically to support Vercel preview deploys, custom domains, and localhost
     callback(null, true)
   },
   credentials: true
@@ -29,13 +25,11 @@ app.use(morgan('dev'))
 app.use(express.json())
 
 // Routes
-app.use('/auth', authRoutes)
 app.use('/profile', profileRoutes)
-app.use('/wallet', walletRoutes)
-app.use('/api/send-money', authenticateToken, sendMoneyRoutes)
-app.use('/api/notifications', authenticateToken, notificationRoutes)
-app.use('/api/payment-requests', authenticateToken, paymentRequestRoutes)
-app.use('/api/payment-methods', authenticateToken, paymentMethodRoutes)
+app.use('/api/send-money', sendMoneyRoutes)
+app.use('/api/notifications', notificationRoutes)
+app.use('/api/payment-requests', paymentRequestRoutes)
+app.use('/api/payment-methods', paymentMethodRoutes)
 app.use('/api/payment-links', paymentLinkRoutes)
 
 // Health check

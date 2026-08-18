@@ -47,7 +47,7 @@ export default function ScrollImage() {
         {/* Right-aligned text overlay */}
         <div className="absolute inset-0 flex items-center justify-end p-8 md:p-16 bg-black/15">
           <h2 className="text-white text-3xl sm:text-5xl md:text-6xl font-black tracking-tighter text-right drop-shadow-[0_4px_16px_rgba(0,0,0,0.7)] select-none uppercase font-sans leading-tight">
-            Pay Securely<br />On Stellar
+            Pay Securely<br />On Midnight
           </h2>
         </div>
 

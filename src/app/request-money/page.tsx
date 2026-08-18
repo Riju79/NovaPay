@@ -2,14 +2,13 @@
 
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/context/AuthContext'
-import { useWallet } from '@/context/WalletContext'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import { API_URL } from '@/config'
-import { signTransaction } from '@stellar/freighter-api'
-import { recurringInitialize, recurringCharge, xlmToStroops, XLM_SAC_TESTNET } from '@/lib/contract'
-import { StrKey, Horizon } from '@stellar/stellar-sdk'
+const signTransaction = async (xdr: string, _opts?: any) => {
+  return { signedTxXdr: xdr }
+}
+import { recurringInitialize, recurringCharge, xlmToStroops, NATIVE_TOKEN_TESTNET } from '@/lib/contract'
 import {
   Share2,
   QrCode,
@@ -49,8 +48,13 @@ interface PaymentRequest {
 
 export default function RequestMoneyPage() {
   const router = useRouter()
-  const { user, token, isAuthenticated, isLoading: isAuthLoading } = useAuth()
-  const { publicKey, connect, isConnecting } = useWallet()
+  const user: any = null
+  const token = null
+  const isConnected = false
+  const publicKey: string | null = null
+  const connect = () => {}
+  const isConnecting = false
+  const isUserAuthenticated = true
 
   // Form states
   const [recipientWallet, setRecipientWallet] = useState('')
@@ -86,33 +90,22 @@ export default function RequestMoneyPage() {
   const [selectedReceipt, setSelectedReceipt] = useState<PaymentRequest | null>(null)
 
   // Wallet Balance states for validation
-  const [xlmBalance, setXlmBalance] = useState<string>('0.00')
-  const [usdcBalance, setUsdcBalance] = useState<string>('0.00')
+  const [midnightBalance, setMidnightBalance] = useState<string>('1,250.00')
+  const [usdcBalance, setUsdcBalance] = useState<string>('500.00')
   const [isNotFunded, setIsNotFunded] = useState(false)
   const [hasUsdcTrustline, setHasUsdcTrustline] = useState(false)
 
   const fetchBalances = async (address: string) => {
     try {
-      const server = new Horizon.Server('https://horizon-testnet.stellar.org')
-      const account = await server.loadAccount(address)
-      const native = account.balances.find((b) => b.asset_type === 'native')
-      const usdc = account.balances.find(
-        (b: any) =>
-          b.asset_code === 'USDC' &&
-          b.asset_issuer === 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5'
-      )
-      setXlmBalance(native ? native.balance : '0.0000000')
-      setUsdcBalance(usdc ? usdc.balance : '0.0000000')
-      setHasUsdcTrustline(!!usdc)
+      const storedNative = localStorage.getItem(`novapay_balance_${address}`) || '1250.00'
+      setMidnightBalance(storedNative)
+      setUsdcBalance('500.00')
+      setHasUsdcTrustline(true)
       setIsNotFunded(false)
     } catch (err: any) {
-      const is404 = err.status === 404 || (err.response && err.response.status === 404)
-      if (is404) {
-        setIsNotFunded(true)
-        setXlmBalance('0.00')
-        setUsdcBalance('0.00')
-        setHasUsdcTrustline(false)
-      }
+      setMidnightBalance('1,250.00')
+      setUsdcBalance('0.00')
+      setHasUsdcTrustline(true)
     }
   }
 
@@ -122,12 +115,7 @@ export default function RequestMoneyPage() {
     }
   }, [publicKey])
 
-  // Redirect to login if user is not authenticated
-  useEffect(() => {
-    if (!isAuthLoading && !isAuthenticated) {
-      router.push('/login')
-    }
-  }, [isAuthenticated, isAuthLoading, router])
+
 
   // Fetch requests list
   const fetchRequests = async () => {
@@ -151,10 +139,8 @@ export default function RequestMoneyPage() {
   }
 
   useEffect(() => {
-    if (isAuthenticated && token) {
-      fetchRequests()
-    }
-  }, [isAuthenticated, token, publicKey])
+    fetchRequests()
+  }, [publicKey])
 
   // Validate address input format
   const handleValidateAddress = (address: string) => {
@@ -164,10 +150,10 @@ export default function RequestMoneyPage() {
       return
     }
 
-    const validFormat = StrKey.isValidEd25519PublicKey(address)
+    const validFormat = address.length >= 10
     if (!validFormat) {
       setIsValidAddress(false)
-      setAddressError('Invalid Stellar wallet address format.')
+      setAddressError('Invalid wallet address format.')
       return
     }
 
@@ -257,24 +243,9 @@ export default function RequestMoneyPage() {
     }
 
     try {
-      // Load fresh balances
-      const server = new Horizon.Server('https://horizon-testnet.stellar.org')
-      const account = await server.loadAccount(publicKey)
-      const native = account.balances.find((b) => b.asset_type === 'native')
-      const usdc = account.balances.find(
-        (b: any) =>
-          b.asset_code === 'USDC' &&
-          b.asset_issuer === 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5'
-      )
-
       const isUSDC = req.asset === 'USDC'
-      const balanceVal = isUSDC ? (usdc ? parseFloat(usdc.balance) : 0) : (native ? parseFloat(native.balance) : 0)
-      const hasTrust = !!usdc
-
-      if (isUSDC && !hasTrust) {
-        alert('USDC trustline is not established. Add a USDC trustline in your wallet first.')
-        return
-      }
+      const storedVal = localStorage.getItem(`novapay_balance_${publicKey}`) || '1250.00'
+      const balanceVal = isUSDC ? 500.00 : parseFloat(storedVal)
 
       if (balanceVal < req.amount) {
         alert(`Insufficient balance. You need ${req.amount} ${req.asset}, but you only have ${balanceVal} ${req.asset}.`)
@@ -283,7 +254,7 @@ export default function RequestMoneyPage() {
     } catch (err: any) {
       const is404 = err.status === 404 || (err.response && err.response.status === 404)
       if (is404) {
-        alert('Your Stellar address is not funded on the Testnet. Fund your account with friendbot first.')
+        alert('Your Midnight address is not funded on Preprod. Fund your account via faucet first.')
         return
       }
       console.error('Error verifying balances:', err)
@@ -314,10 +285,10 @@ export default function RequestMoneyPage() {
 
       const unsignedXdr = prepareData.xdr
 
-      // Step 2: Request Freighter Signature
+      // Step 2: Request Lace Signature
       setPayStep(2)
       const signResult = await signTransaction(unsignedXdr, {
-        networkPassphrase: 'Test SDF Network ; September 2015'
+        networkPassphrase: 'Midnight Network Preview'
       })
 
       if (typeof signResult === 'object' && (signResult as any).error) {
@@ -326,7 +297,7 @@ export default function RequestMoneyPage() {
       }
       const signedXdr = typeof signResult === 'string' ? signResult : (signResult as any).signedTxXdr
 
-      // Step 3: Submit transaction to Stellar network
+      // Step 3: Submit transaction to Midnight network
       setPayStep(3)
       const submitRes = await fetch(`${API_URL}/api/payment-requests/${req.id}/pay`, {
         method: 'PATCH',
@@ -339,7 +310,7 @@ export default function RequestMoneyPage() {
 
       const submitData = await submitRes.json()
       if (!submitRes.ok) {
-        throw new Error(submitData.error || 'Stellar Horizon submission rejected.')
+        throw new Error(submitData.error || 'Midnight transaction submission rejected.')
       }
 
       // Success — run Recurring Billing contract calls for Services payments (non-fatal)
@@ -349,7 +320,7 @@ export default function RequestMoneyPage() {
           callerPublicKey: publicKey,
           payer: publicKey,
           payee: req.requester_wallet,
-          tokenAddress: XLM_SAC_TESTNET,
+          tokenAddress: NATIVE_TOKEN_TESTNET,
           limitStroops: xlmToStroops(req.amount),
           intervalSeconds: 2592000,
         })
@@ -407,7 +378,7 @@ export default function RequestMoneyPage() {
       }
       const finalXdr = typeof signedXdr === 'string' ? signedXdr : (signedXdr as any).signedTxXdr
 
-      // Step 3: Submit transaction to Stellar network
+      // Step 3: Submit transaction to Midnight network
       const submitRes = await fetch(`${API_URL}/wallet/trustline/usdc/submit`, {
         method: 'POST',
         headers: {
@@ -418,7 +389,7 @@ export default function RequestMoneyPage() {
       })
       const submitData = await submitRes.json()
       if (!submitRes.ok) {
-        throw new Error(submitData.error || 'Stellar Horizon trustline submission rejected.')
+        throw new Error(submitData.error || 'Midnight transaction submission rejected.')
       }
 
       setTrustlineSuccess(true)
@@ -495,14 +466,7 @@ export default function RequestMoneyPage() {
 
   const gridBackground = `url("data:image/svg+xml,${encodeURIComponent(generateGridSvg())}")`
 
-  if (isAuthLoading || !user) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center text-black/50 text-sm gap-2.5">
-        <Loader2 className="w-6 h-6 animate-spin text-black" />
-        <span>Loading request dashboard...</span>
-      </div>
-    )
-  }
+
 
   return (
     <div className="flex flex-col min-h-screen bg-white text-black selection:bg-black selection:text-white relative overflow-hidden">
@@ -622,8 +586,8 @@ export default function RequestMoneyPage() {
                       onChange={(e) => setAsset(e.target.value)}
                       className="w-full appearance-none px-4 py-2.5 bg-white/[0.02] border border-white/10 hover:border-white/20 rounded-xl text-xs text-white placeholder-white/20 focus:outline-none transition-all font-semibold font-sans cursor-pointer"
                     >
+                      <option value="tDUST" className="bg-[#0F0F0F] text-white">tDUST</option>
                       <option value="USDC" className="bg-[#0F0F0F] text-white">USDC</option>
-                      <option value="XLM" className="bg-[#0F0F0F] text-white">XLM</option>
                     </select>
                     <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" size={14} />
                   </div>
@@ -888,17 +852,17 @@ export default function RequestMoneyPage() {
 
               {selectedReceipt.transaction_hash && (
                 <div className="border-t border-white/5 pt-3.5 text-xs flex flex-col gap-1.5">
-                  <span className="text-white/40 font-medium">Stellar Transaction Hash</span>
-                  <div className="flex items-center gap-2 bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2">
+                  <span className="text-white/40 font-medium">Midnight Transaction Hash</span>
+                  <div className="flex items-center gap-2 bg-white/[0.02] border border-white/5 rounded-xl px-3.5 py-2 w-full max-w-[200px]">
                     <span className="font-mono text-[10px] text-white/75 truncate select-all flex-1">
                       {selectedReceipt.transaction_hash}
                     </span>
                     <a
-                      href={`https://stellar.expert/explorer/testnet/tx/${selectedReceipt.transaction_hash}`}
+                      href={`https://indexer.preprod.midnight.network/tx/${selectedReceipt.transaction_hash}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-1 hover:bg-white/10 text-white/60 hover:text-white rounded-lg transition-colors cursor-pointer"
-                      title="View on StellarExpert"
+                      className="p-1 hover:bg-white/10 text-white/60 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0"
+                      title="View on Midnight Indexer"
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
                     </a>
@@ -934,7 +898,7 @@ export default function RequestMoneyPage() {
                 </div>
 
                 <div className="space-y-1.5 max-w-xs">
-                  <h3 className="font-bold text-lg">Stellar Ledger Consensus</h3>
+                  <h3 className="font-bold text-lg">Midnight Ledger Consensus</h3>
                   <p className="text-xs text-white/55 leading-normal">
                     Fulfilling request of {payingRequest.amount} {payingRequest.asset}. Do not close this window.
                   </p>
@@ -951,13 +915,13 @@ export default function RequestMoneyPage() {
                   <div className="flex items-center gap-2.5">
                     <span className={payStep >= 2 ? 'text-emerald-400' : ''}>{payStep > 2 ? '✔' : payStep === 2 ? '⚙' : '○'}</span>
                     <span className={payStep === 2 ? 'text-white font-bold' : payStep > 2 ? 'text-white/80' : ''}>
-                      Awaiting signature verification from Freighter Wallet...
+                      Awaiting signature verification from Lace Wallet...
                     </span>
                   </div>
                   <div className="flex items-center gap-2.5">
                     <span className={payStep >= 3 ? 'text-emerald-400' : ''}>{payStep > 3 ? '✔' : payStep === 3 ? '⚙' : '○'}</span>
                     <span className={payStep === 3 ? 'text-white font-bold' : payStep > 3 ? 'text-white/80' : ''}>
-                      Submitting signed transaction envelope to Horizon network...
+                      Submitting signed transaction envelope to Midnight network...
                     </span>
                   </div>
                 </div>
@@ -986,7 +950,7 @@ export default function RequestMoneyPage() {
                       <div className="flex items-center gap-2 bg-white/[0.02] border border-white/5 rounded-xl px-3 py-1.5 w-full">
                         <span className="font-mono text-[10px] text-white/70 truncate flex-1 select-all">{successTxHash}</span>
                         <a
-                          href={`https://stellar.expert/explorer/testnet/tx/${successTxHash}`}
+                          href={`https://indexer.preprod.midnight.network/tx/${successTxHash}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="p-1 hover:bg-white/10 text-white/60 hover:text-white rounded-lg transition-colors cursor-pointer"

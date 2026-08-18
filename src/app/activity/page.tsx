@@ -2,8 +2,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '@/context/AuthContext'
-import { useWallet } from '@/context/WalletContext'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import { API_URL } from '@/config'
@@ -51,8 +49,11 @@ interface Notification {
 
 export default function ActivityPage() {
   const router = useRouter()
-  const { user, token, isAuthenticated, isLoading: isAuthLoading } = useAuth()
-  const { publicKey } = useWallet()
+  const user: any = null
+  const token = null
+  const isConnected = false
+  const publicKey: string | null = null
+  const isUserAuthenticated = true
 
   // State
   const [transactions, setTransactions] = useState<DBTransaction[]>([])
@@ -72,16 +73,8 @@ export default function ActivityPage() {
   const [selectedTx, setSelectedTx] = useState<DBTransaction | null>(null)
   const [copiedText, setCopiedText] = useState<string | null>(null)
 
-  // Redirect to login if user is not authenticated
-  useEffect(() => {
-    if (!isAuthLoading && !isAuthenticated) {
-      router.push('/login')
-    }
-  }, [isAuthenticated, isAuthLoading, router])
-
   // Fetch data
   const fetchData = async (showSpinner = true) => {
-    if (!token) return
     if (showSpinner) setIsLoading(true)
     setError(null)
     try {
@@ -114,10 +107,8 @@ export default function ActivityPage() {
   }
 
   useEffect(() => {
-    if (isAuthenticated && token) {
-      fetchData(true)
-    }
-  }, [isAuthenticated, token, publicKey])
+    fetchData(true)
+  }, [publicKey])
 
   // Refresh helper
   const handleRefresh = () => {
@@ -312,15 +303,7 @@ export default function ActivityPage() {
     return notifications.filter(n => !n.is_read).length
   }, [notifications])
 
-  // Loading skeleton screen
-  if (isAuthLoading || !user) {
-    return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center text-black/50 text-sm gap-2.5">
-        <Loader2 className="w-6 h-6 animate-spin text-black" />
-        <span>Syncing activity workspace...</span>
-      </div>
-    )
-  }
+
 
   return (
     <div className="flex flex-col min-h-screen bg-white text-black selection:bg-black selection:text-white relative overflow-hidden">
@@ -596,7 +579,7 @@ export default function ActivityPage() {
                       {/* Right: Date, Amount & Info Action */}
                       <div className="flex sm:flex-col justify-between items-end gap-1 shrink-0 self-end sm:self-center">
                         <span className="font-mono text-sm font-black text-white/90">
-                          {isSender ? '-' : '+'}{tx.amount} <span className="text-xs text-white/40">XLM</span>
+                          {isSender ? '-' : '+'}{tx.amount} <span className="text-xs text-white/40">tDUST</span>
                         </span>
                         <div className="flex items-center gap-2 text-right">
                           <span className="text-[10px] text-white/40 font-medium font-sans">
@@ -735,7 +718,7 @@ export default function ActivityPage() {
               <div className="w-full bg-white/[0.02] border border-white/5 rounded-2xl p-4.5 space-y-4 text-xs font-semibold">
                 <div className="flex justify-between items-baseline gap-4">
                   <span className="text-white/40">Amount</span>
-                  <span className="font-mono text-white/95 font-black text-sm">{selectedTx.amount} XLM</span>
+                  <span className="font-mono text-white/95 font-black text-sm">{selectedTx.amount} tDUST</span>
                 </div>
 
                 <div className="flex justify-between items-baseline gap-4 border-t border-white/5 pt-3">
@@ -773,7 +756,7 @@ export default function ActivityPage() {
 
                 {selectedTx.tx_hash && (
                   <div className="flex flex-col gap-2 border-t border-white/5 pt-3">
-                    <span className="text-white/40">Stellar Transaction Hash</span>
+                    <span className="text-white/40">Midnight Transaction Hash</span>
                     <div className="flex items-center gap-2 bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2 w-full">
                       <span className="font-mono text-[9px] text-white/75 truncate select-all flex-1">
                         {selectedTx.tx_hash}
@@ -786,7 +769,7 @@ export default function ActivityPage() {
                         <Copy className="w-3.5 h-3.5" />
                       </button>
                       <a
-                        href={`https://stellar.expert/explorer/testnet/tx/${selectedTx.tx_hash}`}
+                        href={`https://indexer.preprod.midnight.network/tx/${selectedTx.tx_hash}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="p-1 hover:bg-white/15 text-white/45 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0"

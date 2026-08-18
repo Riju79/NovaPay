@@ -53,7 +53,7 @@ export default function BenefitsZigzag() {
             Designed for Modern Cross-Border Payments
           </h2>
           <p className="mt-4 text-base md:text-lg text-black/60 font-sans leading-relaxed">
-            NovaPay coordinates payment settlements directly on the Stellar blockchain network, removing the standard friction of global bank processing.
+            NovaPay coordinates payment settlements directly on the Midnight blockchain network, removing the standard friction of global bank processing.
           </p>
         </div>
 
@@ -126,7 +126,7 @@ export default function BenefitsZigzag() {
       </div>
 
       {/* Full width bottom image with adjusted height */}
-      <div className="w-full h-[260px] sm:h-[380px] md:h-[450px] overflow-hidden border-t border-black/5 relative">
+      <div className="w-full h-[260px] sm:h-[380px] md:h-[450px] overflow-hidden border-t border-black/5 relative mt-24">
         <img
           src="/tagline-bottom.jpg"
           alt="Silhouetted travelers at a terminal representing global payment journeys"
@@ -141,7 +141,7 @@ export default function BenefitsZigzag() {
               Global Request System
             </h3>
             <p className="text-white/80 text-[10px] sm:text-xs md:text-sm font-medium leading-relaxed font-sans max-w-xs sm:max-w-sm">
-              Generate secure payment requests instantly on the Stellar ledger. Send requests directly to clients or business partners, allowing them to settle balances instantly in local currency.
+              Generate secure payment requests instantly on the Midnight ledger. Send requests directly to clients or business partners, allowing them to settle balances instantly with zero-knowledge privacy.
             </p>
             <button
               onClick={() => router.push('/request-money')}

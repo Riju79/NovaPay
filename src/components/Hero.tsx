@@ -96,7 +96,7 @@ export default function Hero() {
 
       {/* Main Hero Container */}
       <div className="max-w-4xl mx-auto flex flex-col items-center">
-        {/* Stellar Badge */}
+        {/* Midnight Network Badge */}
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
@@ -104,7 +104,7 @@ export default function Hero() {
           className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/[0.04] border border-black/[0.08] text-xs font-semibold text-black/75 mb-6"
         >
           <span className="flex h-1.5 w-1.5 rounded-full bg-black animate-pulse" />
-          Powered by Stellar Blockchain
+          Powered by Midnight Network
         </motion.div>
 
         {/* Hero Heading */}
@@ -114,7 +114,7 @@ export default function Hero() {
           transition={{ duration: 0.8, delay: 0.1, ease: 'easeOut' }}
           className="text-4xl md:text-6xl font-black tracking-tight text-black leading-[1.1] max-w-3xl font-sans"
         >
-          Send Money Anywhere.<br />Instantly. On Stellar.
+          Send Money Anywhere.<br />Instantly. On Midnight.
         </motion.h1>
 
         {/* Subheading */}

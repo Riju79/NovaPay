@@ -50,7 +50,7 @@ export default function Footer() {
                 <a href="#guides" className="hover:text-white transition-colors duration-200">Cross-Border Payment Guides</a>
               </li>
               <li>
-                <a href="#network" className="hover:text-white transition-colors duration-200">Stellar Network Status</a>
+                <a href="#network" className="hover:text-white transition-colors duration-200">Midnight Network Status</a>
               </li>
             </ul>
           </div>
@@ -81,7 +81,7 @@ export default function Footer() {
                 <a href="#privacy" className="hover:text-white transition-colors duration-200">Privacy Policy</a>
               </li>
               <li>
-                <a href="#stellar-compliance" className="hover:text-white transition-colors duration-200">Stellar Compliance Docs</a>
+                <a href="#midnight-compliance" className="hover:text-white transition-colors duration-200">Midnight Compliance Docs</a>
               </li>
               <li>
                 <a href="#licenses" className="hover:text-white transition-colors duration-200">Licenses & Registrations</a>
@@ -93,7 +93,7 @@ export default function Footer() {
         {/* Bottom Line */}
         <div className="flex flex-col sm:flex-row items-center justify-between border-t border-white/5 pt-8 text-xs text-white/40">
           <p>© 2026 NovaPay. All rights reserved.</p>
-          <p className="mt-2 sm:mt-0">Built on the Stellar Blockchain Network.</p>
+          <p className="mt-2 sm:mt-0">Built on the Midnight Blockchain Network.</p>
         </div>
 
       </div>

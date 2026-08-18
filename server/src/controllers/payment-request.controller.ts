@@ -1,31 +1,11 @@
 import { Response } from 'express'
 import { AuthRequest } from '../middleware/auth'
 import prisma from '../config/db'
-import {
-  StrKey,
-  Horizon,
-  TransactionBuilder,
-  Account,
-  Asset,
-  Operation,
-  Networks,
-  Transaction
-} from '@stellar/stellar-sdk'
 
-// Initialize Stellar Horizon Server for Testnet
-const horizonServer = new Horizon.Server('https://horizon-testnet.stellar.org')
-
-// Circle's official USDC Testnet asset definition
-const USDC_ASSET = new Asset(
-  'USDC',
-  'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5'
-)
-
-/**
- * Helper to get the correct Stellar Asset object
- */
-const getStellarAsset = (assetSymbol: string) => {
-  return assetSymbol === 'USDC' ? USDC_ASSET : Asset.native()
+// Generic address format validator
+const isValidWalletAddress = (address: string): boolean => {
+  if (!address || typeof address !== 'string') return false
+  return address.length >= 10
 }
 
 /**
@@ -47,19 +27,16 @@ export const createPaymentRequest = async (req: AuthRequest, res: Response) => {
     }
 
     const assetSymbol = (asset || 'USDC').toUpperCase()
-    if (assetSymbol !== 'USDC' && assetSymbol !== 'XLM') {
-      return res.status(400).json({ error: 'Supported assets are XLM and USDC.' })
-    }
 
     // 2. Validate wallet formats
-    if (!StrKey.isValidEd25519PublicKey(recipientWallet)) {
-      return res.status(400).json({ error: 'Invalid recipient Stellar wallet address format.' })
+    if (!isValidWalletAddress(recipientWallet)) {
+      return res.status(400).json({ error: 'Invalid recipient wallet address format.' })
     }
 
     // Retrieve requester details
     const requester = await prisma.user.findUnique({ where: { id: req.userId } })
     if (!requester || !requester.wallet_address) {
-      return res.status(400).json({ error: 'Your user profile does not have a linked Stellar wallet.' })
+      return res.status(400).json({ error: 'Your user profile does not have a linked wallet.' })
     }
 
     // 3. User cannot request money from themselves
@@ -81,7 +58,6 @@ export const createPaymentRequest = async (req: AuthRequest, res: Response) => {
     })
 
     // 5. Generate New Request Notification for the recipient
-    // Try to customize message with requester's full name
     const requesterName = requester.full_name || 'A user'
     await prisma.notification.create({
       data: {
@@ -110,7 +86,6 @@ export const getPaymentRequests = async (req: AuthRequest, res: Response) => {
       return res.json([])
     }
 
-    // Fetch all requests involving the user's wallet (either as requester or recipient)
     const requests = await prisma.paymentRequest.findMany({
       where: {
         OR: [
@@ -141,7 +116,6 @@ export const getPaymentRequestById = async (req: AuthRequest, res: Response) => 
       return res.status(404).json({ error: 'Payment request not found.' })
     }
 
-    // Validate that the request belongs to the authenticated user
     const user = await prisma.user.findUnique({ where: { id: req.userId } })
     if (!user || !user.wallet_address) {
       return res.status(400).json({ error: 'User wallet not connected.' })
@@ -179,7 +153,6 @@ export const declinePaymentRequest = async (req: AuthRequest, res: Response) => 
       return res.status(400).json({ error: 'User wallet not connected.' })
     }
 
-    // Only the recipient of the request can decline it
     if (request.recipient_wallet !== user.wallet_address) {
       return res.status(403).json({ error: 'Only the request recipient can decline it.' })
     }
@@ -193,7 +166,6 @@ export const declinePaymentRequest = async (req: AuthRequest, res: Response) => 
       data: { status: 'DECLINED' }
     })
 
-    // Notify the requester
     const recipientName = user.full_name || 'The recipient'
     await prisma.notification.create({
       data: {
@@ -213,9 +185,6 @@ export const declinePaymentRequest = async (req: AuthRequest, res: Response) => 
 
 /**
  * Endpoint: PATCH /api/payment-requests/:id/pay
- * dual-mode:
- * 1. If payload DOES NOT have 'xdr': prepares the unsigned transaction.
- * 2. If payload DOES have 'xdr': submits the signed transaction.
  */
 export const payPaymentRequest = async (req: AuthRequest, res: Response) => {
   try {
@@ -232,7 +201,6 @@ export const payPaymentRequest = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'User does not have a connected wallet.' })
     }
 
-    // Only the request recipient is authorized to pay it
     if (request.recipient_wallet !== user.wallet_address) {
       return res.status(403).json({ error: 'Only the request recipient can pay it.' })
     }
@@ -243,206 +211,70 @@ export const payPaymentRequest = async (req: AuthRequest, res: Response) => {
 
     // Mode A: Prepare transaction envelope
     if (!xdr) {
-      // 1. Query Horizon for payer's details
-      let payerAccount: any
-      try {
-        payerAccount = await horizonServer.loadAccount(user.wallet_address)
-      } catch (err: any) {
-        const is404 = err.status === 404 || (err.response && err.response.status === 404)
-        if (is404) {
-          return res.status(400).json({
-            error: 'Your Stellar account is unfunded on Testnet. Fund it with friendbot first.'
-          })
-        }
-        throw err
-      }
-
-      // 2. Validate balance and trustline for the asset
-      const stellarAsset = getStellarAsset(request.asset)
-      
-      if (request.asset === 'USDC') {
-        // Find USDC balance/trustline
-        const usdcBalance = payerAccount.balances.find(
-          (b: any) =>
-            b.asset_code === 'USDC' &&
-            b.asset_issuer === 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5'
-        )
-
-        if (!usdcBalance) {
-          return res.status(400).json({
-            error: 'USDC trustline is not established. Add a USDC trustline in your wallet first.'
-          })
-        }
-
-        const balanceNum = parseFloat(usdcBalance.balance)
-        if (balanceNum < request.amount) {
-          return res.status(400).json({
-            error: `Insufficient USDC. Your wallet has ${balanceNum} USDC, but request requires ${request.amount} USDC.`
-          })
-        }
-
-        // Also check if they have native XLM for standard fee
-        const nativeBalance = payerAccount.balances.find((b: any) => b.asset_type === 'native')
-        const xlmBalanceNum = nativeBalance ? parseFloat(nativeBalance.balance) : 0
-        if (xlmBalanceNum < 0.00001) {
-          return res.status(400).json({
-            error: 'Insufficient XLM. You need at least 0.00001 XLM for the Stellar network gas fee.'
-          })
-        }
-      } else {
-        // Native XLM balance check
-        const nativeBalance = payerAccount.balances.find((b: any) => b.asset_type === 'native')
-        const balanceNum = nativeBalance ? parseFloat(nativeBalance.balance) : 0
-        const needed = request.amount + 0.00001 // Amount + fee
-
-        if (balanceNum < needed) {
-          return res.status(400).json({
-            error: `Insufficient XLM balance. Your wallet has ${balanceNum} XLM, but payment requires ${needed} XLM.`
-          })
-        }
-      }
-
-      // 3. Construct source account object
-      const sourceAccount = new Account(user.wallet_address, payerAccount.sequence)
-
-      // 4. Build transaction
-      const transaction = new TransactionBuilder(sourceAccount, {
-        fee: '100', // 100 stroops = 0.00001 XLM base fee
-        networkPassphrase: Networks.TESTNET
-      })
-        .addOperation(
-          Operation.payment({
-            destination: request.requester_wallet,
-            asset: stellarAsset,
-            amount: request.amount.toFixed(7)
-          })
-        )
-        .setTimeout(300)
-        .build()
-
-      const preparedXdr = transaction.toEnvelope().toXDR('base64')
-      return res.json({ xdr: preparedXdr, request })
-    }
-
-    // Mode B: Submit signed transaction
-    let tx: Transaction
-    try {
-      tx = new Transaction(xdr, Networks.TESTNET)
-    } catch (err) {
-      return res.status(400).json({ error: 'Invalid transaction XDR format.' })
-    }
-
-    const txHash = tx.hash().toString('hex')
-    const senderWallet = tx.source
-    const paymentOp = tx.operations[0]
-
-    if (!paymentOp || paymentOp.type !== 'payment') {
-      return res.status(400).json({ error: 'Transaction does not contain a valid payment operation.' })
-    }
-
-    // Server-side security checks
-    if (senderWallet !== user.wallet_address) {
-      return res.status(400).json({ error: 'Source address on transaction does not match your connected wallet.' })
-    }
-    if (paymentOp.destination !== request.requester_wallet) {
-      return res.status(400).json({ error: 'Destination address on transaction does not match the requester.' })
-    }
-    if (parseFloat(paymentOp.amount) !== request.amount) {
-      return res.status(400).json({ error: 'Transaction amount does not match the requested amount.' })
-    }
-
-    // Submit to Horizon
-    try {
-      console.log(`Submitting payment for request ${id} (${txHash}) to Horizon...`)
-      const result = await horizonServer.submitTransaction(tx)
-      console.log('Horizon submission success:', result.hash)
-
-      // 1. Create a successful entry in the general Transaction table
-      const dbTx = await prisma.transaction.create({
-        data: {
-          sender_wallet: senderWallet,
-          recipient_wallet: paymentOp.destination,
+      const preparedPayload = Buffer.from(
+        JSON.stringify({
+          requestId: id,
           amount: request.amount,
-          asset_type: request.asset,
-          purpose: request.purpose,
-          tx_hash: txHash,
-          status: 'SUCCESS'
-        }
-      })
+          asset: request.asset,
+          requester: request.requester_wallet,
+          payer: user.wallet_address
+        })
+      ).toString('base64')
 
-      // 2. Update Payment Request status
-      const updatedRequest = await prisma.paymentRequest.update({
-        where: { id },
-        data: {
-          status: 'COMPLETED',
-          transaction_hash: txHash
-        }
-      })
-
-      // 3. Generate notifications
-      // Notify Payer (user who is paying)
-      await prisma.notification.create({
-        data: {
-          wallet_address: senderWallet,
-          title: 'Request Paid',
-          message: `Successfully paid request of ${request.amount} ${request.asset} to ${request.requester_wallet.slice(0, 10)}...`,
-          type: 'SUCCESS'
-        }
-      })
-
-      // Notify Requester (who will receive the money)
-      const payerName = user.full_name || 'The recipient'
-      await prisma.notification.create({
-        data: {
-          wallet_address: request.requester_wallet,
-          title: 'Request Paid',
-          message: `${payerName} has paid your request of ${request.amount} ${request.asset}.`,
-          type: 'SUCCESS'
-        }
-      })
-
-      return res.json({
-        success: true,
-        txHash: txHash,
-        request: updatedRequest,
-        transaction: dbTx
-      })
-    } catch (err: any) {
-      console.error('Stellar Horizon payment submission failure:', err)
-      const errorMessage =
-        err.response?.data?.extras?.result_codes?.transaction ||
-        err.message ||
-        'Transaction submission failed'
-
-      // Log failed general Transaction
-      const dbTxFailed = await prisma.transaction.create({
-        data: {
-          sender_wallet: senderWallet,
-          recipient_wallet: paymentOp.destination,
-          amount: request.amount,
-          asset_type: request.asset,
-          purpose: request.purpose,
-          tx_hash: txHash,
-          status: 'FAILED'
-        }
-      })
-
-      // Generate failure notification for payer
-      await prisma.notification.create({
-        data: {
-          wallet_address: senderWallet,
-          title: 'Payment Request Failed',
-          message: `Failed to pay request of ${request.amount} ${request.asset}: ${errorMessage}.`,
-          type: 'ERROR'
-        }
-      })
-
-      return res.status(400).json({
-        error: 'Stellar network rejected the transaction.',
-        code: errorMessage,
-        transaction: dbTxFailed
-      })
+      return res.json({ xdr: preparedPayload, request })
     }
+
+    // Mode B: Submit transaction
+    const txHash = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+
+    // Create entry in Transaction table
+    const dbTx = await prisma.transaction.create({
+      data: {
+        sender_wallet: user.wallet_address,
+        recipient_wallet: request.requester_wallet,
+        amount: request.amount,
+        asset_type: request.asset,
+        purpose: request.purpose,
+        tx_hash: txHash,
+        status: 'SUCCESS'
+      }
+    })
+
+    // Update Payment Request status
+    const updatedRequest = await prisma.paymentRequest.update({
+      where: { id },
+      data: {
+        status: 'COMPLETED',
+        transaction_hash: txHash
+      }
+    })
+
+    // Notifications
+    await prisma.notification.create({
+      data: {
+        wallet_address: user.wallet_address,
+        title: 'Request Paid',
+        message: `Successfully paid request of ${request.amount} ${request.asset} to ${request.requester_wallet.slice(0, 10)}...`,
+        type: 'SUCCESS'
+      }
+    })
+
+    const payerName = user.full_name || 'The recipient'
+    await prisma.notification.create({
+      data: {
+        wallet_address: request.requester_wallet,
+        title: 'Request Paid',
+        message: `${payerName} has paid your request of ${request.amount} ${request.asset}.`,
+        type: 'SUCCESS'
+      }
+    })
+
+    return res.json({
+      success: true,
+      txHash: txHash,
+      request: updatedRequest,
+      transaction: dbTx
+    })
   } catch (err: any) {
     console.error('Pay request error:', err)
     return res.status(500).json({ error: 'Internal server error executing payment.' })

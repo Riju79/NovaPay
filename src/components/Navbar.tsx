@@ -2,20 +2,25 @@
 
 import React, { useState, useEffect } from 'react'
 import Logo from './Logo'
-import { Menu, X } from 'lucide-react'
+import { Menu, X, Wallet } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import ConnectWalletButton from './ConnectWalletButton'
-import { useAuth } from '@/context/AuthContext'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+
+import { useMidnightWallet } from '@/context/MidnightWalletContext'
 
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const { user, isAuthenticated } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
   const [activePath, setActivePath] = useState('')
+  const { wallet, isConnected, openModal } = useMidnightWallet()
+
+  const truncateAddress = (addr: string) => {
+    if (!addr || addr.length <= 12) return addr
+    return `${addr.substring(0, 6)}...${addr.substring(addr.length - 4)}`
+  }
 
   // Sync active path with route changes
   useEffect(() => {
@@ -108,7 +113,14 @@ export default function Navbar() {
 
         {/* Right: Buttons (Desktop) */}
         <div className="hidden md:flex items-center gap-4">
-          <ConnectWalletButton />
+          <button
+            type="button"
+            onClick={openModal}
+            className="flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-white/90 text-black font-bold text-xs rounded-full shadow-md transition-all active:scale-95 cursor-pointer font-mono"
+          >
+            <Wallet size={14} />
+            <span>{isConnected && wallet ? truncateAddress(wallet.address) : 'Connect Wallet'}</span>
+          </button>
         </div>
 
         {/* Mobile Menu Button */}
@@ -160,9 +172,17 @@ export default function Navbar() {
               })}
             </nav>
             <div className="flex flex-col gap-3 pt-4 border-t border-white/5">
-              <div className="w-full flex justify-center">
-                <ConnectWalletButton />
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false)
+                  openModal()
+                }}
+                className="w-full flex items-center justify-center gap-2 py-3 bg-white hover:bg-white/90 text-black font-bold text-sm rounded-xl cursor-pointer font-mono"
+              >
+                <Wallet size={16} />
+                <span>{isConnected && wallet ? truncateAddress(wallet.address) : 'Connect Wallet'}</span>
+              </button>
             </div>
           </motion.div>
         )}

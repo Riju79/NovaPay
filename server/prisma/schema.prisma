@@ -27,7 +27,7 @@ model Transaction {
   sender_wallet    String
   recipient_wallet String
   amount           Float
-  asset_type       String   @default("XLM")
+  asset_type       String   @default("tDUST")
   purpose          String
   tx_hash          String?  @unique
   status           String   @default("PENDING") // PENDING, SUCCESS, FAILED
@@ -53,7 +53,7 @@ model PaymentRequest {
   requester_wallet String
   recipient_wallet String
   amount           Float
-  asset            String   @default("USDC")
+  asset            String   @default("tDUST")
   purpose          String
   message          String?
   status           String   @default("PENDING") // PENDING, COMPLETED, DECLINED, EXPIRED
@@ -67,9 +67,9 @@ model PaymentRequest {
 model PaymentMethod {
   id             String   @id @default(uuid())
   user_id        String
-  provider       String   // e.g. "FREIGHTER"
+  provider       String   @default("LACE_MIDNIGHT") // LACE_MIDNIGHT, IAM_MIDNIGHT
   wallet_address String   @unique
-  network        String   @default("TESTNET")
+  network        String   @default("PREPROD") // PREPROD, PREVIEW, TESTNET
   status         String   @default("ACTIVE")
   is_default     Boolean  @default(false)
   created_at     DateTime @default(now())
@@ -82,10 +82,9 @@ model PaymentLink {
   id             String   @id @default(uuid())
   creator_wallet String
   amount         Float
-  asset          String   @default("USDC")
+  asset          String   @default("tDUST")
   status         String   @default("ACTIVE")
   created_at     DateTime @default(now())
 
   @@map("payment_links")
 }
-

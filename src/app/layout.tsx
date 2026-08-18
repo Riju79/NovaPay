@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { WalletProvider } from "@/context/WalletContext";
-import { AuthProvider } from "@/context/AuthContext";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -10,8 +8,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "NovaPay — Cross-Border Payments on Stellar",
-  description: "Send global payments instantly with near-zero exchange fees using NovaPay, a decentralized cross-border payment platform built on the Stellar blockchain.",
+  title: "NovaPay — Cross-Border Payments",
+  description: "Send global payments instantly with zero-knowledge privacy using NovaPay, a decentralized cross-border payment platform.",
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
@@ -20,6 +18,9 @@ export const metadata: Metadata = {
     apple: '/apple-touch-icon.png',
   }
 };
+
+import { MidnightWalletProvider } from "@/context/MidnightWalletContext";
+import MidnightWalletModal from "@/components/MidnightWalletModal";
 
 export default function RootLayout({
   children,
@@ -32,11 +33,10 @@ export default function RootLayout({
       className={`${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <WalletProvider>
-          <AuthProvider>
-            {children}
-          </AuthProvider>
-        </WalletProvider>
+        <MidnightWalletProvider>
+          {children}
+          <MidnightWalletModal />
+        </MidnightWalletProvider>
       </body>
     </html>
   );
