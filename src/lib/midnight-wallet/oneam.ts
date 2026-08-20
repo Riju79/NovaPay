@@ -1,12 +1,18 @@
 /**
  * 1AM Wallet (Midnight Edition) Adapter
+ *
+ * Uses the official @midnight-ntwrk/dapp-connector-api v4.0.1 API:
+ *   window.midnight['1am'] : InitialAPI
+ *     .connect(networkId: string) => Promise<ConnectedAPI>
+ *
+ * The ConnectedAPI is cached in utils.ts and reused by extractMidnightBalances().
  */
 
 import { MidnightWalletAdapter, MidnightWalletSession, WalletDetectionResult } from './types'
 import { MidnightWalletError } from './errors'
 import { detect1AM, getRaw1AMProvider, isBrowser } from './detect'
 import { CONNECTION_TIMEOUT_MS } from './config'
-import { extractMidnightAddresses, isNetworkCompatible } from './utils'
+import { extractMidnightAddresses, isNetworkCompatible, clearCachedConnectedApi } from './utils'
 
 export class OneAMMidnightAdapter implements MidnightWalletAdapter {
   public readonly providerId = '1am' as const
@@ -34,55 +40,43 @@ export class OneAMMidnightAdapter implements MidnightWalletAdapter {
       )
     }
 
-    console.log('[MidnightWallet] 1AM detected')
-    console.log('[MidnightWallet] Requesting authorization from 1AM')
+    console.log('[MidnightWallet] 1AM detected. apiVersion:', raw1AM.apiVersion)
+    console.log('[MidnightWallet] Calling InitialAPI.connect("' + targetNetworkId + '") — triggers 1AM authorization popup')
 
-    const authorize1AM = async (): Promise<unknown> => {
-      console.log('[MidnightWallet] Invoking official 1AM authorization method')
-
-      if (typeof raw1AM.enable === 'function') {
-        return await raw1AM.enable()
-      }
-      if (typeof raw1AM.connect === 'function') {
-        return await raw1AM.connect()
-      }
-      if (typeof raw1AM.requestAccounts === 'function') {
-        return await raw1AM.requestAccounts()
-      }
-      if (typeof raw1AM.request === 'function') {
-        try {
-          return await raw1AM.request({ method: 'midnight_requestAccounts' })
-        } catch {
-          return await raw1AM.request({ method: 'connect' })
-        }
-      }
-
-      if (typeof (raw1AM as any).isEnabled === 'function') {
-        const isEnabled = await (raw1AM as any).isEnabled()
-        if (isEnabled) return raw1AM
-      }
-
-      throw new MidnightWalletError(
-        'PROVIDER_ERROR',
-        '1AM Wallet extension does not expose a supported connection method (enable, connect, requestAccounts, request).'
-      )
-    }
+    // Clear any previously cached ConnectedAPI to force fresh connection
+    clearCachedConnectedApi()
 
     let enabledApi: unknown
-    try {
-      const authPromise = authorize1AM()
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(
-          () => reject(new MidnightWalletError('CONNECTION_TIMEOUT')),
-          CONNECTION_TIMEOUT_MS
-        )
-      )
 
-      enabledApi = await Promise.race([authPromise, timeoutPromise])
-    } catch (err: unknown) {
-      if (err instanceof MidnightWalletError) {
-        throw err
+    try {
+      // Official 1AM API: InitialAPI.connect(networkId) triggers the authorization popup
+      // and returns a ConnectedAPI on approval, or throws on rejection.
+      if (typeof (raw1AM as any).connect === 'function') {
+        const connectPromise = (raw1AM as any).connect(targetNetworkId)
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new MidnightWalletError('CONNECTION_TIMEOUT')),
+            CONNECTION_TIMEOUT_MS
+          )
+        )
+        enabledApi = await Promise.race([connectPromise, timeoutPromise])
+        console.log('[MidnightWallet] connect() returned ConnectedAPI')
+      } else {
+        // Legacy fallback for older versions that exposed enable() or requestAccounts()
+        console.warn('[MidnightWallet] .connect() not found on 1AM provider. Trying legacy methods.')
+        if (typeof (raw1AM as any).enable === 'function') {
+          enabledApi = await (raw1AM as any).enable()
+        } else if (typeof (raw1AM as any).requestAccounts === 'function') {
+          enabledApi = await (raw1AM as any).requestAccounts()
+        } else {
+          throw new MidnightWalletError(
+            'PROVIDER_ERROR',
+            '1AM Wallet extension does not expose .connect(), .enable(), or .requestAccounts().'
+          )
+        }
       }
+    } catch (err: unknown) {
+      if (err instanceof MidnightWalletError) throw err
 
       const errObj = err as { message?: string; code?: number }
       const errMsg = errObj?.message || String(err)
@@ -91,6 +85,7 @@ export class OneAMMidnightAdapter implements MidnightWalletAdapter {
       if (
         lowerMsg.includes('reject') ||
         lowerMsg.includes('user denied') ||
+        lowerMsg.includes('permissionrejected') ||
         errObj?.code === 4001
       ) {
         console.warn('[MidnightWallet] User rejected connection')
@@ -121,14 +116,13 @@ export class OneAMMidnightAdapter implements MidnightWalletAdapter {
       throw new MidnightWalletError('PROVIDER_ERROR', `1AM connection failed: ${errMsg}`, err)
     }
 
-    console.log('[MidnightWallet] Authorization successful')
-    console.log('[MidnightWallet] Raw wallet response received')
+    console.log('[MidnightWallet] Authorization successful. Extracting addresses.')
 
-    // Deep extract address details
+    // Extract addresses using official ConnectedAPI methods (getShieldedAddresses, getUnshieldedAddress)
     const extracted = await extractMidnightAddresses(enabledApi, raw1AM)
 
     if (!extracted.address) {
-      console.error('[MidnightWallet] Failed to extract address from 1AM extension object:', { enabledApi, raw1AM })
+      console.error('[MidnightWallet] Failed to extract address from 1AM ConnectedAPI')
       throw new MidnightWalletError(
         'ADDRESS_UNAVAILABLE',
         '1AM extension authorized successfully, but no active Midnight address was returned. Please ensure your 1AM wallet is unlocked and has an active account initialized.'
@@ -147,7 +141,7 @@ export class OneAMMidnightAdapter implements MidnightWalletAdapter {
       )
     }
 
-    console.log('[MidnightWallet] Network verified')
+    console.log('[MidnightWallet] Network verified:', walletNetwork)
     console.log('[MidnightWallet] Session established')
 
     return {
@@ -163,6 +157,7 @@ export class OneAMMidnightAdapter implements MidnightWalletAdapter {
 
   public async disconnect(): Promise<void> {
     console.log('[MidnightWallet] Disconnecting 1AM session')
+    clearCachedConnectedApi()
   }
 }
 
