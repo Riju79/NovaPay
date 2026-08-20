@@ -285,7 +285,7 @@ export default function RequestMoneyPage() {
 
       const unsignedXdr = prepareData.xdr
 
-      // Step 2: Request Lace Signature
+      // Step 2: Request 1AM Signature
       setPayStep(2)
       const signResult = await signTransaction(unsignedXdr, {
         networkPassphrase: 'Midnight Network Preview'
@@ -915,7 +915,7 @@ export default function RequestMoneyPage() {
                   <div className="flex items-center gap-2.5">
                     <span className={payStep >= 2 ? 'text-emerald-400' : ''}>{payStep > 2 ? '✔' : payStep === 2 ? '⚙' : '○'}</span>
                     <span className={payStep === 2 ? 'text-white font-bold' : payStep > 2 ? 'text-white/80' : ''}>
-                      Awaiting signature verification from Lace Wallet...
+                      Awaiting signature verification from 1AM Wallet...
                     </span>
                   </div>
                   <div className="flex items-center gap-2.5">

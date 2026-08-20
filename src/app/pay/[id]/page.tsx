@@ -29,6 +29,8 @@ interface PaymentLinkDetails {
   created_at: string
 }
 
+import { useMidnightWallet } from '@/context/MidnightWalletContext'
+
 export default function PayLinkPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
@@ -37,16 +39,12 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
   const [isLoadingDetails, setIsLoadingDetails] = useState(true)
   const [detailsError, setDetailsError] = useState<string | null>(null)
 
-  const publicKey = details?.creator_wallet || ''
-  const connect = () => {}
-  const isConnecting = false
-  const disconnect = () => {}
-
-  const [midnightBalance, setMidnightBalance] = useState<string>('1,250.00')
-  const [usdcBalance, setUsdcBalance] = useState<string>('500.00')
-  const [isNotFunded, setIsNotFunded] = useState(false)
+  const { wallet, isConnecting, connect, disconnect, balance, fetchBalance, isLoadingBalance: isLoadingBalances } = useMidnightWallet()
+  const publicKey = wallet?.address || null
+  const midnightBalance = balance ? balance.tDust : '0.00'
+  const usdcBalance = balance ? balance.usdc : '0.00'
+  const isNotFunded = balance ? balance.isNotFunded : false
   const [hasUsdcTrustline, setHasUsdcTrustline] = useState(false)
-  const [isLoadingBalances, setIsLoadingBalances] = useState(false)
 
   // Payment execution state
   const [isPaying, setIsPaying] = useState(false)
@@ -59,17 +57,10 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
     fetchLinkDetails()
   }, [id])
 
-  // Fetch balances when wallet is connected
+  // Fetch payment link details on mount
   useEffect(() => {
-    if (publicKey) {
-      fetchClientBalances(publicKey)
-    } else {
-      setMidnightBalance('1,250.00')
-      setUsdcBalance('500.00')
-      setIsNotFunded(false)
-      setHasUsdcTrustline(false)
-    }
-  }, [publicKey, details])
+    fetchLinkDetails()
+  }, [id])
 
   const fetchLinkDetails = async () => {
     setIsLoadingDetails(true)
@@ -91,23 +82,6 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
       setDetailsError('Failed to load invoice details. Please verify your network connection.')
     } finally {
       setIsLoadingDetails(false)
-    }
-  }
-
-  const fetchClientBalances = async (address: string) => {
-    setIsLoadingBalances(true)
-    try {
-      const storedNative = localStorage.getItem(`novapay_balance_${address}`) || '1250.00'
-      setMidnightBalance(storedNative)
-      setUsdcBalance('500.00')
-      setHasUsdcTrustline(true)
-      setIsNotFunded(false)
-    } catch (err: any) {
-      setMidnightBalance('1,250.00')
-      setUsdcBalance('500.00')
-      setHasUsdcTrustline(true)
-    } finally {
-      setIsLoadingBalances(false)
     }
   }
 
@@ -162,7 +136,7 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
       setTxHash(submitData.txHash)
       setPayStep(4)
       if (publicKey) {
-        fetchClientBalances(publicKey)
+        fetchBalance()
       }
     } catch (err: any) {
       console.error('Payment error:', err)
@@ -335,7 +309,7 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
                       <WalletIcon size={16} className="text-white/70" />
                     </div>
                     <div>
-                      <p className="text-[9px] text-white/40 uppercase font-bold tracking-wider">Lace (Midnight Edition)</p>
+                      <p className="text-[9px] text-white/40 uppercase font-bold tracking-wider">1AM Wallet</p>
                       <p className="font-mono text-[11px] text-white/80">{publicKey.slice(0, 10)}...{publicKey.slice(-8)}</p>
                     </div>
                   </div>
@@ -389,7 +363,7 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
               </div>
             ) : (
               <button
-                onClick={() => connect()}
+                onClick={() => connect('1am')}
                 disabled={isConnecting}
                 className="w-full py-4 bg-white text-black hover:bg-white/95 disabled:bg-white/20 font-bold text-xs rounded-2xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
@@ -398,7 +372,7 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
                 ) : (
                   <WalletIcon size={14} />
                 )}
-                <span>Connect Lace Wallet</span>
+                <span>Connect 1AM Wallet</span>
               </button>
             )}
           </div>
@@ -434,7 +408,7 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
               <div className="space-y-1.5 max-w-xs">
                 <h3 className="font-bold text-lg">Processing Payment</h3>
                 <p className="text-xs text-white/55 leading-normal">
-                  Preparing secure transaction envelope. Please approve Lace wallet confirmation popup.
+                  Preparing secure transaction envelope. Please approve 1AM wallet confirmation popup.
                 </p>
               </div>
 
@@ -448,7 +422,7 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
                 <div className="flex items-center gap-2.5">
                   <span className={payStep >= 2 ? 'text-emerald-400' : ''}>{payStep > 2 ? '✔' : payStep === 2 ? '⚙' : '○'}</span>
                   <span className={payStep === 2 ? 'text-white font-bold' : payStep > 2 ? 'text-white/80' : ''}>
-                    Awaiting Lace wallet signature...
+                    Awaiting 1AM wallet signature...
                   </span>
                 </div>
                 <div className="flex items-center gap-2.5">

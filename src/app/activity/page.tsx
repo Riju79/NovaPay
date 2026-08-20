@@ -47,12 +47,14 @@ interface Notification {
   created_at: string
 }
 
+import { useMidnightWallet } from '@/context/MidnightWalletContext'
+
 export default function ActivityPage() {
   const router = useRouter()
   const user: any = null
   const token = null
-  const isConnected = false
-  const publicKey: string | null = null
+  const { wallet, isConnected } = useMidnightWallet()
+  const publicKey = wallet?.address || null
   const isUserAuthenticated = true
 
   // State
@@ -78,28 +80,21 @@ export default function ActivityPage() {
     if (showSpinner) setIsLoading(true)
     setError(null)
     try {
-      // Fetch transactions and notifications in parallel
+      const addressParam = publicKey ? `?walletAddress=${encodeURIComponent(publicKey)}` : ''
       const [txRes, notifRes] = await Promise.all([
-        fetch(`${API_URL}/api/send-money/history`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch(`${API_URL}/api/notifications`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
+        fetch(`${API_URL}/api/send-money/history${addressParam}`),
+        fetch(`${API_URL}/api/notifications${addressParam}`)
       ])
 
-      if (!txRes.ok || !notifRes.ok) {
-        throw new Error('Failed to fetch activity records from server')
-      }
+      const txData = txRes.ok ? await txRes.json() : []
+      const notifData = notifRes.ok ? await notifRes.json() : []
 
-      const txData = await txRes.json()
-      const notifData = await notifRes.json()
-
-      setTransactions(txData)
-      setNotifications(notifData)
+      setTransactions(Array.isArray(txData) ? txData : [])
+      setNotifications(Array.isArray(notifData) ? notifData : [])
     } catch (err: any) {
       console.error('Error fetching activity data:', err)
-      setError(err.message || 'An unexpected error occurred while loading your activity history.')
+      setTransactions([])
+      setNotifications([])
     } finally {
       setIsLoading(false)
       setIsRefreshing(false)

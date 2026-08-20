@@ -1,28 +1,15 @@
 /**
- * Unified Connect Engine for Midnight Wallets
+ * Unified Connect Engine for 1AM Midnight Wallet
  */
 
 import { MidnightWalletProviderId, MidnightWalletSession } from './types'
-import { MidnightWalletError } from './errors'
 import { MIDNIGHT_NETWORK } from './config'
-import { laceAdapter } from './lace'
 import { oneamAdapter } from './oneam'
 
 export async function connectWallet(
-  provider: MidnightWalletProviderId
+  _provider: MidnightWalletProviderId = '1am'
 ): Promise<MidnightWalletSession> {
   const targetNetworkId = MIDNIGHT_NETWORK.id
-
-  if (provider === 'lace') {
-    return laceAdapter.connect(targetNetworkId)
-  }
-
-  if (provider === '1am') {
-    return oneamAdapter.connect(targetNetworkId)
-  }
-
-  throw new MidnightWalletError(
-    'WALLET_NOT_SUPPORTED',
-    `Unsupported wallet provider: '${provider}'`
-  )
+  return oneamAdapter.connect(targetNetworkId)
 }
+

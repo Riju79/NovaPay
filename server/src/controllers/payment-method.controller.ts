@@ -147,12 +147,42 @@ export const getWalletBalances = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Invalid wallet address.' })
     }
 
+    // Query transactions in DB involving this wallet address
+    const transactions = await prisma.transaction.findMany({
+      where: {
+        OR: [
+          { sender_wallet: address },
+          { recipient_wallet: address }
+        ],
+        status: 'COMPLETED'
+      }
+    })
+
+    let tDustNet = 0
+    let usdcNet = 0
+
+    for (const tx of transactions) {
+      const amt = Number(tx.amount) || 0
+      const curr = (tx.asset_type || 'tDUST').toUpperCase()
+
+      if (tx.recipient_wallet === address) {
+        if (curr.includes('USDC')) usdcNet += amt
+        else tDustNet += amt
+      } else if (tx.sender_wallet === address) {
+        if (curr.includes('USDC')) usdcNet -= amt
+        else tDustNet -= amt
+      }
+    }
+
+    const tDustStr = tDustNet > 0 ? tDustNet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '0.00'
+    const usdcStr = usdcNet > 0 ? usdcNet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '0.00'
+
     return res.json({
-      tDust: '1250.00',
-      midnight: '1250.00',
-      xlm: '1250.00',
-      usdc: '500.0000000',
-      isNotFunded: false
+      tDust: tDustStr,
+      midnight: tDustStr,
+      xlm: '0.00',
+      usdc: usdcStr,
+      isNotFunded: tDustNet === 0 && usdcNet === 0
     })
   } catch (err: any) {
     console.error('Get wallet balances error:', err)

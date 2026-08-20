@@ -7,21 +7,34 @@ import prisma from '../config/db'
  */
 export const getNotifications = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.userId) {
-      return res.status(401).json({ error: 'Unauthorized' })
+    const queryAddress = (req.query.walletAddress as string) || (req.query.address as string)
+
+    if (queryAddress) {
+      const notifications = await prisma.notification.findMany({
+        where: { wallet_address: queryAddress },
+        orderBy: { created_at: 'desc' }
+      })
+      return res.json(notifications)
     }
 
-    const user = await prisma.user.findUnique({ where: { id: req.userId } })
-    if (!user || !user.wallet_address) {
-      return res.json([])
+    if (req.userId && typeof req.userId === 'string') {
+      const user = await prisma.user.findUnique({ where: { id: req.userId } })
+      if (user && user.wallet_address) {
+        const notifications = await prisma.notification.findMany({
+          where: { wallet_address: user.wallet_address },
+          orderBy: { created_at: 'desc' }
+        })
+        return res.json(notifications)
+      }
     }
 
-    const notifications = await prisma.notification.findMany({
-      where: { wallet_address: user.wallet_address },
-      orderBy: { created_at: 'desc' }
+    // Default fallback: return all recent notifications
+    const allNotifs = await prisma.notification.findMany({
+      orderBy: { created_at: 'desc' },
+      take: 50
     })
 
-    return res.json(notifications)
+    return res.json(allNotifs)
   } catch (err: any) {
     console.error('Fetch notifications error:', err)
     return res.status(500).json({ error: 'Server error retrieving notifications' })

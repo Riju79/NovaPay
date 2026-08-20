@@ -38,14 +38,16 @@ export class OneAMMidnightAdapter implements MidnightWalletAdapter {
     console.log('[MidnightWallet] Requesting authorization from 1AM')
 
     const authorize1AM = async (): Promise<unknown> => {
+      console.log('[MidnightWallet] Invoking official 1AM authorization method')
+
       if (typeof raw1AM.enable === 'function') {
-        return raw1AM.enable()
+        return await raw1AM.enable()
       }
       if (typeof raw1AM.connect === 'function') {
-        return raw1AM.connect()
+        return await raw1AM.connect()
       }
       if (typeof raw1AM.requestAccounts === 'function') {
-        return raw1AM.requestAccounts()
+        return await raw1AM.requestAccounts()
       }
       if (typeof raw1AM.request === 'function') {
         try {
@@ -55,20 +57,14 @@ export class OneAMMidnightAdapter implements MidnightWalletAdapter {
         }
       }
 
-      if (
-        typeof raw1AM.state === 'function' ||
-        typeof raw1AM.getAccounts === 'function' ||
-        typeof raw1AM.getAddress === 'function' ||
-        typeof raw1AM.getShieldedAddress === 'function' ||
-        raw1AM.address ||
-        raw1AM.shieldedAddress
-      ) {
-        return raw1AM
+      if (typeof (raw1AM as any).isEnabled === 'function') {
+        const isEnabled = await (raw1AM as any).isEnabled()
+        if (isEnabled) return raw1AM
       }
 
       throw new MidnightWalletError(
         'PROVIDER_ERROR',
-        '1AM Wallet extension object does not expose a supported connection method (enable, connect, requestAccounts, request).'
+        '1AM Wallet extension does not expose a supported connection method (enable, connect, requestAccounts, request).'
       )
     }
 
@@ -132,10 +128,10 @@ export class OneAMMidnightAdapter implements MidnightWalletAdapter {
     const extracted = await extractMidnightAddresses(enabledApi, raw1AM)
 
     if (!extracted.address) {
-      console.error('[MidnightWallet] Failed to extract address')
+      console.error('[MidnightWallet] Failed to extract address from 1AM extension object:', { enabledApi, raw1AM })
       throw new MidnightWalletError(
         'ADDRESS_UNAVAILABLE',
-        '1AM extension authorized successfully but did not return a valid Midnight address. Please ensure your 1AM wallet is unlocked and initialized.'
+        '1AM extension authorized successfully, but no active Midnight address was returned. Please ensure your 1AM wallet is unlocked and has an active account initialized.'
       )
     }
 

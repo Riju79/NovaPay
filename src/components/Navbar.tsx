@@ -15,7 +15,15 @@ export default function Navbar() {
   const router = useRouter()
   const pathname = usePathname()
   const [activePath, setActivePath] = useState('')
-  const { wallet, isConnected, openModal } = useMidnightWallet()
+  const { wallet, isConnected, openModal, connect } = useMidnightWallet()
+
+  const handleWalletButtonClick = () => {
+    if (isConnected && wallet) {
+      openModal()
+    } else {
+      connect('1am')
+    }
+  }
 
   const truncateAddress = (addr: string) => {
     if (!addr || addr.length <= 12) return addr
@@ -115,7 +123,7 @@ export default function Navbar() {
         <div className="hidden md:flex items-center gap-4">
           <button
             type="button"
-            onClick={openModal}
+            onClick={handleWalletButtonClick}
             className="flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-white/90 text-black font-bold text-xs rounded-full shadow-md transition-all active:scale-95 cursor-pointer font-mono"
           >
             <Wallet size={14} />
@@ -176,7 +184,7 @@ export default function Navbar() {
                 type="button"
                 onClick={() => {
                   setMobileMenuOpen(false)
-                  openModal()
+                  handleWalletButtonClick()
                 }}
                 className="w-full flex items-center justify-center gap-2 py-3 bg-white hover:bg-white/90 text-black font-bold text-sm rounded-xl cursor-pointer font-mono"
               >

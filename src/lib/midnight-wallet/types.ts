@@ -1,9 +1,9 @@
 /**
  * Midnight Wallet Types
- * Normalized interface and structures for Lace and 1AM Midnight wallet integration.
+ * Normalized interface and structures for 1AM Midnight wallet integration.
  */
 
-export type MidnightWalletProviderId = 'lace' | '1am'
+export type MidnightWalletProviderId = '1am'
 
 export type WalletConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error'
 
@@ -53,28 +53,18 @@ export type UnknownProvider = Record<string, unknown> & {
   networkId?: string | number
 }
 
-// Global browser window extension typings for Midnight & Cardano wallets
+// Global browser window extension typings for Midnight wallet
 declare global {
   interface Window {
     midnight?: {
-      lace?: UnknownProvider
-      Lace?: UnknownProvider
-      mnLace?: UnknownProvider
       '1am'?: UnknownProvider
       '1AM'?: UnknownProvider
       oneam?: UnknownProvider
       oneAM?: UnknownProvider
       [key: string]: unknown
     }
-    cardano?: {
-      lace?: UnknownProvider
-      Lace?: UnknownProvider
-      laceMidnight?: UnknownProvider
-      [key: string]: unknown
-    }
-    lace?: UnknownProvider
-    Lace?: UnknownProvider
     oneam?: UnknownProvider
     oneAM?: UnknownProvider
   }
 }
+

@@ -1,54 +1,11 @@
 /**
- * Browser Extension Detection for Lace and 1AM Midnight Wallets
- * Dynamic, resilient detection supporting all browser extension injection variants.
+ * Browser Extension Detection for 1AM Midnight Wallet
  */
 
 import { WalletDetectionResult, MidnightWalletProviderId, UnknownProvider } from './types'
 
 export function isBrowser(): boolean {
   return typeof window !== 'undefined'
-}
-
-/**
- * Dynamic resolution for Lace provider across window.midnight, window.cardano, and window
- */
-export function getRawLaceProvider(): UnknownProvider | undefined {
-  if (!isBrowser()) return undefined
-
-  // 1. Direct window.midnight properties (Midnight Lace Edition)
-  if (window.midnight?.lace) return window.midnight.lace as UnknownProvider
-  if (window.midnight?.Lace) return window.midnight.Lace as UnknownProvider
-  if (window.midnight?.mnLace) return window.midnight.mnLace as UnknownProvider
-  if (window.midnight?.['lace-midnight']) return window.midnight['lace-midnight'] as UnknownProvider
-
-  // 2. Direct window.cardano properties (Standard Lace Extension)
-  if (window.cardano?.lace) return window.cardano.lace as UnknownProvider
-  if (window.cardano?.Lace) return window.cardano.Lace as UnknownProvider
-  if (window.cardano?.laceMidnight) return window.cardano.laceMidnight as UnknownProvider
-
-  // 3. Top-level window properties
-  if (window.lace) return window.lace as UnknownProvider
-  if (window.Lace) return window.Lace as UnknownProvider
-
-  // 4. Dynamic scan of window.midnight keys for "lace"
-  if (window.midnight && typeof window.midnight === 'object') {
-    for (const key of Object.keys(window.midnight)) {
-      if (key.toLowerCase().includes('lace')) {
-        return window.midnight[key] as UnknownProvider
-      }
-    }
-  }
-
-  // 5. Dynamic scan of window.cardano keys for "lace"
-  if (window.cardano && typeof window.cardano === 'object') {
-    for (const key of Object.keys(window.cardano)) {
-      if (key.toLowerCase().includes('lace')) {
-        return window.cardano[key] as UnknownProvider
-      }
-    }
-  }
-
-  return undefined
 }
 
 /**
@@ -83,30 +40,6 @@ export function getRaw1AMProvider(): UnknownProvider | undefined {
 }
 
 /**
- * Detect Lace Wallet (Midnight Edition)
- */
-export async function detectLace(): Promise<WalletDetectionResult> {
-  if (!isBrowser()) {
-    return {
-      provider: 'lace',
-      name: 'Lace Midnight',
-      isInstalled: false,
-    }
-  }
-
-  const laceObj = getRawLaceProvider()
-  const isInstalled = Boolean(laceObj)
-
-  return {
-    provider: 'lace',
-    name: 'Lace Midnight',
-    isInstalled,
-    apiVersion: laceObj?.apiVersion || '1.0.0',
-    icon: laceObj?.icon,
-  }
-}
-
-/**
  * Detect 1AM Wallet (Midnight Edition)
  */
 export async function detect1AM(): Promise<WalletDetectionResult> {
@@ -131,14 +64,14 @@ export async function detect1AM(): Promise<WalletDetectionResult> {
 }
 
 /**
- * Detect all supported Midnight wallets
+ * Detect 1AM wallet
  */
 export async function detectAllWallets(): Promise<
   Record<MidnightWalletProviderId, WalletDetectionResult>
 > {
-  const [lace, oneam] = await Promise.all([detectLace(), detect1AM()])
+  const oneam = await detect1AM()
   return {
-    lace,
     '1am': oneam,
   }
 }
+

@@ -25,6 +25,8 @@ import {
   FileText
 } from 'lucide-react'
 
+import { useMidnightWallet } from '@/context/MidnightWalletContext'
+
 interface DBTransaction {
   id: string
   sender_wallet: string
@@ -41,11 +43,10 @@ export default function SendMoneyPage() {
   const router = useRouter()
   const user: any = null
   const token = null
-  const isConnected = false
-  const publicKey: string | null = null
-  const walletBalance = '1,250.00'
-  const connect = () => {}
-  const isConnecting = false
+  const { wallet, isConnected, isConnecting, connect, balance, fetchBalance } = useMidnightWallet()
+  const publicKey = wallet?.address || null
+  const localBalance = balance ? balance.tDust : '0.00'
+  const isNotFunded = balance ? balance.isNotFunded : false
   const isUserAuthenticated = true
 
   // Form states
@@ -57,9 +58,6 @@ export default function SendMoneyPage() {
   const [isValidRecipient, setIsValidRecipient] = useState<boolean | null>(null)
   const [recipientError, setRecipientError] = useState<string | null>(null)
   const [isValidatingRecipient, setIsValidatingRecipient] = useState(false)
-  
-  const [localBalance, setLocalBalance] = useState<string | null>(null)
-  const [isNotFunded, setIsNotFunded] = useState(false)
 
   // Simulation / Submission states
   const [showConfirmModal, setShowConfirmModal] = useState(false)
@@ -72,28 +70,10 @@ export default function SendMoneyPage() {
   const [history, setHistory] = useState<DBTransaction[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
 
-  // Fetch live balance and transaction history on load or wallet connection
+  // Fetch transaction history on load or wallet connection
   useEffect(() => {
-    fetchBalance()
     fetchHistory()
   }, [publicKey])
-
-  // Fetch live wallet balance from backend Horizon query
-  const fetchBalance = async () => {
-    if (!token) return
-    try {
-      const res = await fetch(`${API_URL}/api/send-money/balance`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      })
-      const data = await res.json()
-      if (res.ok) {
-        setLocalBalance(data.balance)
-        setIsNotFunded(data.isNotFunded || false)
-      }
-    } catch (err) {
-      console.error('Error fetching balance:', err)
-    }
-  }
 
   // Fetch transaction history
   const fetchHistory = async () => {
@@ -357,7 +337,7 @@ export default function SendMoneyPage() {
                   <WalletIcon size={18} className="text-white/80" />
                 </div>
                 <div>
-                  <p className="text-[9px] text-white/40 uppercase font-bold tracking-wider">Lace (Midnight Edition)</p>
+                  <p className="text-[9px] text-white/40 uppercase font-bold tracking-wider">1AM Wallet</p>
                   <p className="font-mono text-xs font-semibold mt-0.5 text-white/95">{truncate(publicKey)}</p>
                 </div>
               </div>
@@ -380,7 +360,7 @@ export default function SendMoneyPage() {
 
               {!publicKey && (
                 <button
-                  onClick={connect}
+                  onClick={() => connect('1am')}
                   disabled={isConnecting}
                   className="w-full mt-5 py-3 flex items-center justify-center gap-2 bg-white text-black hover:bg-white/95 font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer active:scale-98"
                 >
@@ -389,7 +369,7 @@ export default function SendMoneyPage() {
                   ) : (
                     <WalletIcon size={14} />
                   )}
-                  <span>Connect Lace Wallet</span>
+                  <span>Connect 1AM Wallet</span>
                 </button>
               )}
             </div>
@@ -677,7 +657,7 @@ export default function SendMoneyPage() {
         </div>
       )}
 
-      {/* Submission overlay / Lace popups simulator */}
+      {/* Submission overlay / 1AM popups simulator */}
       {isSubmitting && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
           <div className="bg-[#0F0F0F] border border-white/10 w-full max-w-lg rounded-3xl p-6 shadow-2xl text-white relative overflow-hidden">
@@ -691,7 +671,7 @@ export default function SendMoneyPage() {
               <div className="space-y-1.5 max-w-xs">
                 <h3 className="font-bold text-lg">Ledger Dispatching</h3>
                 <p className="text-xs text-white/55 leading-normal">
-                  Authenticating and validating remittance envelope. Please check Lace wallet extension.
+                  Authenticating and validating remittance envelope. Please check 1AM wallet extension.
                 </p>
               </div>
 
@@ -705,7 +685,7 @@ export default function SendMoneyPage() {
                 <div className="flex items-center gap-2.5">
                   <span className={subStep >= 2 ? 'text-emerald-400' : ''}>{subStep > 2 ? '✔' : subStep === 2 ? '⚙' : '○'}</span>
                   <span className={subStep === 2 ? 'text-white font-bold' : subStep > 2 ? 'text-white/80' : ''}>
-                    Awaiting Lace wallet signature...
+                    Awaiting 1AM wallet signature...
                   </span>
                 </div>
                 <div className="flex items-center gap-2.5">

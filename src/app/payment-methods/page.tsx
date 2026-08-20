@@ -41,24 +41,22 @@ interface PaymentLink {
   created_at: string
 }
 
+import { useMidnightWallet } from '@/context/MidnightWalletContext'
+
 export default function PaymentMethodsPage() {
   const router = useRouter()
   const user: any = null
   const token = null
-  const isConnected = false
-  const publicKey: string | null = null
-  const connect = () => {}
-  const isConnecting = false
-  const disconnect = () => {}
+  const { wallet, isConnected, isConnecting, connect, disconnect, balance, fetchBalance, isLoadingBalance: isLoadingBalances } = useMidnightWallet()
+  const publicKey = wallet?.address || null
+  const tDustBalance = balance ? balance.tDust : '0.00'
+  const usdcBalance = balance ? balance.usdc : '0.00'
+  const isNotFunded = balance ? balance.isNotFunded : false
   const isUserAuthenticated = true
 
   // State
   const [methods, setMethods] = useState<PaymentMethod[]>([])
   const [isLoadingMethods, setIsLoadingMethods] = useState(false)
-  const [tDustBalance, setTDustBalance] = useState<string>('1,250.00')
-  const [usdcBalance, setUsdcBalance] = useState<string>('500.00')
-  const [isNotFunded, setIsNotFunded] = useState(false)
-  const [isLoadingBalances, setIsLoadingBalances] = useState(false)
 
   // Payment Link Generator State
   const [linkAmount, setLinkAmount] = useState('')
@@ -71,19 +69,9 @@ export default function PaymentMethodsPage() {
   // UI Modals
   const [showAddressModal, setShowAddressModal] = useState(false)
 
-  // Fetch payment methods and balances when authenticated & wallet is connected
+  // Fetch payment methods when authenticated & wallet is connected
   useEffect(() => {
     fetchPaymentMethods()
-  }, [publicKey])
-
-  useEffect(() => {
-    if (publicKey) {
-      fetchBalances(publicKey)
-    } else {
-      setTDustBalance('1,250.00')
-      setUsdcBalance('500.00')
-      setIsNotFunded(false)
-    }
   }, [publicKey])
 
   const fetchPaymentMethods = async () => {
@@ -101,25 +89,6 @@ export default function PaymentMethodsPage() {
       console.error('Error fetching payment methods:', err)
     } finally {
       setIsLoadingMethods(false)
-    }
-  }
-
-  const fetchBalances = async (address: string) => {
-    setIsLoadingBalances(true)
-    try {
-      const res = await fetch(`${API_URL}/api/payment-methods/balances?address=${address}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      const data = await res.json()
-      if (res.ok) {
-        setTDustBalance(Number(data.tDust || data.midnight || data.xlm || 1250).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 }))
-        setUsdcBalance(Number(data.usdc).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 }))
-        setIsNotFunded(data.isNotFunded || false)
-      }
-    } catch (err) {
-      console.error('Error fetching balances:', err)
-    } finally {
-      setIsLoadingBalances(false)
     }
   }
 
@@ -285,7 +254,7 @@ export default function PaymentMethodsPage() {
                         <WalletIcon size={22} className="text-white/90" />
                       </div>
                       <div>
-                        <p className="text-[9px] text-white/40 uppercase font-bold tracking-wider">Lace (Midnight Edition)</p>
+                        <p className="text-[9px] text-white/40 uppercase font-bold tracking-wider">1AM Wallet</p>
                         <div className="flex items-center gap-2 mt-0.5">
                           <p className="font-mono text-xs font-semibold text-white/95">{(publicKey as string).slice(0, 12)}...{(publicKey as string).slice(-12)}</p>
                           <button
@@ -311,29 +280,29 @@ export default function PaymentMethodsPage() {
                     <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider block">Live Balance Ledger</span>
                     <div className="grid grid-cols-2 gap-4 mt-3">
                       <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4">
-                        <span className="text-[9px] text-white/40 uppercase font-bold tracking-wider">Native Asset (tDUST)</span>
+                        <span className="text-[9px] text-white/40 uppercase font-bold tracking-wider">Unshielded Native Asset</span>
                         <div className="flex items-baseline gap-1 mt-1">
                           <span className="font-mono text-xl font-bold text-white">
                             {isLoadingBalances ? (
                               <Loader2 size={14} className="animate-spin text-white/40 inline" />
                             ) : (
-                              tDustBalance
+                              balance?.unshieldedTDust || tDustBalance
                             )}
                           </span>
                           <span className="text-[10px] text-white/40 font-bold">tDUST</span>
                         </div>
                       </div>
                       <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4">
-                        <span className="text-[9px] text-white/40 uppercase font-bold tracking-wider">Stablecoin Asset (USDC)</span>
+                        <span className="text-[9px] text-white/40 uppercase font-bold tracking-wider">Shielded tDUST</span>
                         <div className="flex items-baseline gap-1 mt-1">
                           <span className="font-mono text-xl font-bold text-white">
                             {isLoadingBalances ? (
                               <Loader2 size={14} className="animate-spin text-white/40 inline" />
                             ) : (
-                              usdcBalance
+                              balance?.shieldedTDust || '0.00'
                             )}
                           </span>
-                          <span className="text-[10px] text-white/40 font-bold">USDC</span>
+                          <span className="text-[10px] text-white/40 font-bold">tDUST</span>
                         </div>
                       </div>
                     </div>
@@ -353,7 +322,7 @@ export default function PaymentMethodsPage() {
 
                   <div className="flex justify-end gap-3 pt-2">
                     <button
-                      onClick={() => fetchBalances(publicKey)}
+                      onClick={fetchBalance}
                       className="px-4 py-2 text-xs font-bold border border-white/10 hover:bg-white/5 rounded-xl transition-all cursor-pointer"
                     >
                       Refresh Balances
@@ -374,11 +343,11 @@ export default function PaymentMethodsPage() {
                   <div className="max-w-xs mx-auto space-y-1.5">
                     <h3 className="font-bold text-sm">No Connected Wallet Found</h3>
                     <p className="text-xs text-white/50 leading-relaxed font-medium">
-                      Authenticate with your Lace or iAM wallet extension to view account balances, receive payments, and sign transactions.
+                      Authenticate with your 1AM wallet extension to view account balances, receive payments, and sign transactions.
                     </p>
                   </div>
                   <button
-                    onClick={connect}
+                    onClick={() => connect('1am')}
                     disabled={isConnecting}
                     className="px-6 py-3 bg-white text-black hover:bg-white/95 disabled:bg-white/20 disabled:text-black/45 font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
                   >
@@ -387,7 +356,7 @@ export default function PaymentMethodsPage() {
                     ) : (
                       <WalletIcon size={14} />
                     )}
-                    <span>Connect Lace Wallet</span>
+                    <span>Connect 1AM Wallet</span>
                   </button>
                 </div>
               )}
@@ -404,7 +373,7 @@ export default function PaymentMethodsPage() {
                     </div>
                     <div>
                       <h4 className="font-bold text-sm flex items-center gap-2">
-                        Lace Wallet (Midnight Edition)
+                        1AM Wallet
                         <span className="px-1.5 py-0.5 rounded text-[8px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 font-bold uppercase tracking-wider">
                           Default
                         </span>

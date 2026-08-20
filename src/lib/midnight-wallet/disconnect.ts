@@ -1,9 +1,8 @@
 /**
- * Disconnect Engine & Session Cleanup for Midnight Wallets
+ * Disconnect Engine & Session Cleanup for 1AM Midnight Wallet
  */
 
 import { MidnightWalletSession } from './types'
-import { laceAdapter } from './lace'
 import { oneamAdapter } from './oneam'
 
 export const STORAGE_SESSION_KEY = 'midnight_wallet_provider'
@@ -14,11 +13,7 @@ export async function disconnectWallet(
   if (!session) return
 
   try {
-    if (session.provider === 'lace') {
-      await laceAdapter.disconnect()
-    } else if (session.provider === '1am') {
-      await oneamAdapter.disconnect()
-    }
+    await oneamAdapter.disconnect()
   } catch (err) {
     console.warn('[MidnightWallet] Disconnect notice:', err)
   }
@@ -32,3 +27,4 @@ export async function disconnectWallet(
     }
   }
 }
+

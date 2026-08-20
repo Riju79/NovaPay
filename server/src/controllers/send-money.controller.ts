@@ -162,22 +162,44 @@ export const submitTransaction = async (req: AuthRequest, res: Response) => {
  */
 export const getTransactionHistory = async (req: AuthRequest, res: Response) => {
   try {
-    const sender = await prisma.user.findUnique({ where: { id: req.userId } })
-    if (!sender || !sender.wallet_address) {
-      return res.json([])
+    const queryAddress = (req.query.walletAddress as string) || (req.query.address as string)
+
+    if (queryAddress) {
+      const history = await prisma.transaction.findMany({
+        where: {
+          OR: [
+            { sender_wallet: queryAddress },
+            { recipient_wallet: queryAddress }
+          ]
+        },
+        orderBy: { created_at: 'desc' }
+      })
+      return res.json(history)
     }
 
-    const history = await prisma.transaction.findMany({
-      where: {
-        OR: [
-          { sender_wallet: sender.wallet_address },
-          { recipient_wallet: sender.wallet_address }
-        ]
-      },
-      orderBy: { created_at: 'desc' }
+    if (req.userId && typeof req.userId === 'string') {
+      const sender = await prisma.user.findUnique({ where: { id: req.userId } })
+      if (sender && sender.wallet_address) {
+        const history = await prisma.transaction.findMany({
+          where: {
+            OR: [
+              { sender_wallet: sender.wallet_address },
+              { recipient_wallet: sender.wallet_address }
+            ]
+          },
+          orderBy: { created_at: 'desc' }
+        })
+        return res.json(history)
+      }
+    }
+
+    // Default fallback: return all recent transactions
+    const allHistory = await prisma.transaction.findMany({
+      orderBy: { created_at: 'desc' },
+      take: 50
     })
 
-    return res.json(history)
+    return res.json(allHistory)
   } catch (err: any) {
     console.error('History fetch error:', err)
     return res.status(500).json({ error: 'Server error retrieving transaction history' })
