@@ -1,0 +1,181 @@
+// NovaPay Recurring Payment Contract
+// Language: Compact 0.23.0
+// Compiler: compactc 0.31.1
+
+pragma language_version >= 0.23;
+
+import CompactStandardLibrary;
+
+// ─── State Model ──────────────────────────────────────────────────────────────
+
+export struct SubscriptionRecord {
+  payer:           Bytes<32>,
+  recipient:       Bytes<32>,
+  amount:          Uint<128>,
+  frequency:       Uint<64>, // interval in seconds
+  nextPaymentTime: Uint<64>,
+  endTime:         Uint<64>,
+  maxPayments:     Uint<32>,
+  paymentCount:    Uint<32>,
+  status:          Uint<8> // 0=CREATED, 1=ACTIVE, 2=PAUSED, 3=CANCELLED, 4=COMPLETED
+}
+
+// Map from subscription ID (32-byte hash) -> SubscriptionRecord
+export ledger subscriptions: Map<Bytes<32>, SubscriptionRecord>;
+
+// ─── Circuits ─────────────────────────────────────────────────────────────────
+
+// Create a new recurring payment subscription.
+export circuit createSubscription(
+  subscriptionId:  Bytes<32>,
+  payer:           Bytes<32>,
+  recipient:       Bytes<32>,
+  amount:          Uint<128>,
+  frequency:       Uint<64>,
+  nextPaymentTime: Uint<64>,
+  endTime:         Uint<64>,
+  maxPayments:     Uint<32>
+): [] {
+  const public_id = disclose(subscriptionId);
+  const public_payer = disclose(payer);
+  const public_recipient = disclose(recipient);
+  const public_amount = disclose(amount);
+  const public_frequency = disclose(frequency);
+  const public_next_time = disclose(nextPaymentTime);
+  const public_end_time = disclose(endTime);
+  const public_max_payments = disclose(maxPayments);
+
+  assert(!subscriptions.member(public_id), "Subscription ID already exists");
+  assert(public_amount > 0, "Amount must be greater than zero");
+  assert(public_frequency > 0, "Frequency must be greater than zero");
+  assert(public_payer != public_recipient, "Payer and recipient must be different");
+  assert(public_end_time >= public_next_time, "End time must be after next payment time");
+
+  subscriptions.insert(public_id, SubscriptionRecord {
+    payer:           public_payer,
+    recipient:       public_recipient,
+    amount:          public_amount,
+    frequency:       public_frequency,
+    nextPaymentTime: public_next_time,
+    endTime:         public_end_time,
+    maxPayments:     public_max_payments,
+    paymentCount:    0,
+    status:          1 // STATUS_ACTIVE
+  });
+}
+
+// Execute a scheduled recurring payment (ACTIVE -> ACTIVE or COMPLETED).
+// Can be called by keeper or recipient when currentTime >= nextPaymentTime.
+export circuit executePayment(
+  subscriptionId: Bytes<32>,
+  callerPk:       Bytes<32>,
+  currentTime:    Uint<64>
+): [] {
+  const public_id = disclose(subscriptionId);
+  const public_caller = disclose(callerPk);
+  const public_current_time = disclose(currentTime);
+
+  assert(subscriptions.member(public_id), "Subscription does not exist");
+  const sub = subscriptions.lookup(public_id);
+
+  assert(sub.status == 1, "Subscription must be ACTIVE to execute payment");
+  assert(public_current_time >= sub.nextPaymentTime, "Payment executed too early");
+  assert(public_current_time <= sub.endTime, "Subscription has passed end time");
+
+  const newCount = (sub.paymentCount + 1) as Uint<32>;
+  const isFinal = (sub.maxPayments > 0 && newCount >= sub.maxPayments) || (sub.nextPaymentTime + sub.frequency > sub.endTime);
+  const nextTime = (sub.nextPaymentTime + sub.frequency) as Uint<64>;
+
+  subscriptions.insert(public_id, SubscriptionRecord {
+    payer:           sub.payer,
+    recipient:       sub.recipient,
+    amount:          sub.amount,
+    frequency:       sub.frequency,
+    nextPaymentTime: nextTime,
+    endTime:         sub.endTime,
+    maxPayments:     sub.maxPayments,
+    paymentCount:    newCount,
+    status:          isFinal ? 4 : 1 // 4=COMPLETED, 1=ACTIVE
+  });
+}
+
+// Pause an active subscription (ACTIVE -> PAUSED).
+export circuit pauseSubscription(
+  subscriptionId: Bytes<32>,
+  callerPk:       Bytes<32>
+): [] {
+  const public_id = disclose(subscriptionId);
+  const public_caller = disclose(callerPk);
+
+  assert(subscriptions.member(public_id), "Subscription does not exist");
+  const sub = subscriptions.lookup(public_id);
+
+  assert(sub.status == 1, "Subscription must be ACTIVE to pause");
+  assert(sub.payer == public_caller, "Only payer can pause subscription");
+
+  subscriptions.insert(public_id, SubscriptionRecord {
+    payer:           sub.payer,
+    recipient:       sub.recipient,
+    amount:          sub.amount,
+    frequency:       sub.frequency,
+    nextPaymentTime: sub.nextPaymentTime,
+    endTime:         sub.endTime,
+    maxPayments:     sub.maxPayments,
+    paymentCount:    sub.paymentCount,
+    status:          2 // STATUS_PAUSED
+  });
+}
+
+// Resume a paused subscription (PAUSED -> ACTIVE).
+export circuit resumeSubscription(
+  subscriptionId: Bytes<32>,
+  callerPk:       Bytes<32>
+): [] {
+  const public_id = disclose(subscriptionId);
+  const public_caller = disclose(callerPk);
+
+  assert(subscriptions.member(public_id), "Subscription does not exist");
+  const sub = subscriptions.lookup(public_id);
+
+  assert(sub.status == 2, "Subscription must be PAUSED to resume");
+  assert(sub.payer == public_caller, "Only payer can resume subscription");
+
+  subscriptions.insert(public_id, SubscriptionRecord {
+    payer:           sub.payer,
+    recipient:       sub.recipient,
+    amount:          sub.amount,
+    frequency:       sub.frequency,
+    nextPaymentTime: sub.nextPaymentTime,
+    endTime:         sub.endTime,
+    maxPayments:     sub.maxPayments,
+    paymentCount:    sub.paymentCount,
+    status:          1 // STATUS_ACTIVE
+  });
+}
+
+// Cancel a subscription (ACTIVE or PAUSED -> CANCELLED).
+export circuit cancelSubscription(
+  subscriptionId: Bytes<32>,
+  callerPk:       Bytes<32>
+): [] {
+  const public_id = disclose(subscriptionId);
+  const public_caller = disclose(callerPk);
+
+  assert(subscriptions.member(public_id), "Subscription does not exist");
+  const sub = subscriptions.lookup(public_id);
+
+  assert(sub.status == 1 || sub.status == 2, "Subscription must be ACTIVE or PAUSED to cancel");
+  assert(sub.payer == public_caller || sub.recipient == public_caller, "Only payer or recipient can cancel");
+
+  subscriptions.insert(public_id, SubscriptionRecord {
+    payer:           sub.payer,
+    recipient:       sub.recipient,
+    amount:          sub.amount,
+    frequency:       sub.frequency,
+    nextPaymentTime: sub.nextPaymentTime,
+    endTime:         sub.endTime,
+    maxPayments:     sub.maxPayments,
+    paymentCount:    sub.paymentCount,
+    status:          3 // STATUS_CANCELLED
+  });
+}

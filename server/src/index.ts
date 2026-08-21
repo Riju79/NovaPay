@@ -9,6 +9,9 @@ import paymentRequestRoutes from './routes/payment-request.routes'
 import paymentMethodRoutes from './routes/payment-method.routes'
 import paymentLinkRoutes from './routes/payment-link.routes'
 
+import escrowRoutes from './routes/escrow.routes'
+import recurringRoutes from './routes/recurring.routes'
+
 dotenv.config()
 
 const app = express()
@@ -31,6 +34,8 @@ app.use('/api/notifications', notificationRoutes)
 app.use('/api/payment-requests', paymentRequestRoutes)
 app.use('/api/payment-methods', paymentMethodRoutes)
 app.use('/api/payment-links', paymentLinkRoutes)
+app.use('/api/escrow', escrowRoutes)
+app.use('/api/recurring', recurringRoutes)
 
 // Health check
 app.get('/', (req, res) => {

@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@midnight-ntwrk/compact-js": "^2.5.1",
+    "@midnight-ntwrk/compact-runtime": "^0.16.0",
     "framer-motion": "^12.40.0",
     "lucide-react": "^1.17.0",
     "next": "16.2.9",

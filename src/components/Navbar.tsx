@@ -75,6 +75,8 @@ export default function Navbar() {
   const navLinks = [
     { name: 'Home', href: '/' },
     { name: 'Send Request', href: '/request-money' },
+    { name: 'Escrow', href: '/escrow' },
+    { name: 'Recurring', href: '/recurring' },
     { name: 'Payment Methods', href: '/payment-methods' },
     { name: 'Activity', href: '/activity' },
   ]

@@ -88,3 +88,36 @@ model PaymentLink {
 
   @@map("payment_links")
 }
+
+model EscrowRecord {
+  id         String   @id
+  payer      String
+  payee      String
+  arbiter    String
+  amount     Float
+  status     Int      @default(0)
+  tx_hash    String?
+  deadline   Int
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("escrow_records")
+}
+
+model SubscriptionRecord {
+  id                String   @id
+  payer             String
+  recipient         String
+  amount            Float
+  frequency_seconds Int
+  next_payment_time Int
+  end_time          Int
+  max_payments      Int      @default(0)
+  payment_count     Int      @default(0)
+  status            Int      @default(1)
+  tx_hash           String?
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  @@map("subscription_records")
+}

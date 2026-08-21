@@ -11,46 +11,44 @@ export interface ExtractedAddresses {
 // Source: @midnight-ntwrk/dapp-connector-api v4.0.1
 // https://registry.npmjs.org/@midnight-ntwrk/dapp-connector-api/latest
 //
-// The official API shape is:
-//   window.midnight['1am']: InitialAPI
-//     .connect(networkId: string) => Promise<ConnectedAPI>
-//
-//   ConnectedAPI (= WalletConnectedAPI & HintUsage):
-//     .getShieldedBalances()   => Promise<Record<TokenType, bigint>>
-//     .getUnshieldedBalances() => Promise<Record<TokenType, bigint>>
-//     .getDustBalance()        => Promise<{ cap: bigint; balance: bigint }>
-//     .getShieldedAddresses()  => Promise<{ shieldedAddress: string; ... }>
-//     .getUnshieldedAddress()  => Promise<{ unshieldedAddress: string }>
-//     .getDustAddress()        => Promise<{ dustAddress: string }>
-//
-// DENOMINATION:
-//   - getShieldedBalances / getUnshieldedBalances return bigint values where
-//     1 NIGHT token = 1_000_000 base units (6 decimal places)
-//   - The 1AM UI shows "UNSHIELDED BALANCE: 5000.0" and the underlying
-//     bigint from getUnshieldedBalances() is 5_000_000_000n (for 5000 NIGHT)
-//   - getDustBalance returns bigint where 1 DUST = 1_000_000 base units
+// ConnectedAPI (= WalletConnectedAPI & HintUsage):
+//   .getShieldedBalances()   => Promise<Record<TokenType, bigint>>
+//   .getUnshieldedBalances() => Promise<Record<TokenType, bigint>>
+//   .getDustBalance()        => Promise<{ cap: bigint; balance: bigint }>
+//   .getShieldedAddresses()  => Promise<{ shieldedAddress: string; ... }>
+//   .getUnshieldedAddress()  => Promise<{ unshieldedAddress: string }>
+//   .getDustAddress()        => Promise<{ dustAddress: string }>
 // ─────────────────────────────────────────────────────────────────────────────
 
 type TokenType = string
 
-interface ConnectedAPI {
+export interface ConnectedAPI {
   getShieldedBalances(): Promise<Record<TokenType, bigint>>
   getUnshieldedBalances(): Promise<Record<TokenType, bigint>>
   getDustBalance(): Promise<{ cap: bigint; balance: bigint }>
   getShieldedAddresses(): Promise<{
     shieldedAddress: string
-    shieldedCoinPublicKey: string
-    shieldedEncryptionPublicKey: string
+    shieldedCoinPublicKey?: string
+    shieldedEncryptionPublicKey?: string
   }>
-  getUnshieldedAddress(): Promise<{ unshieldedAddress: string }>
-  getDustAddress(): Promise<{ dustAddress: string }>
+  getUnshieldedAddress(): Promise<{ unshieldedAddress: string } | string>
+  getDustAddress?(): Promise<{ dustAddress: string } | string>
+  makeTransfer?(
+    desiredOutputs: Array<{
+      kind: 'shielded' | 'unshielded'
+      type: string
+      value: bigint
+      recipient: string
+    }>,
+    options?: { payFees?: boolean }
+  ): Promise<{ tx: string }>
 }
 
 interface InitialAPI {
-  rdns: string
-  name: string
-  icon: string
-  apiVersion: string
+  rdns?: string
+  name?: string
+  icon?: string
+  apiVersion?: string
   connect: (networkId: string) => Promise<ConnectedAPI>
 }
 
@@ -62,34 +60,17 @@ const MIDNIGHT_BASE_UNITS = 1_000_000n
 
 /**
  * Convert a bigint base-unit balance to a human-readable display string.
- * Preserves full precision using bigint arithmetic before formatting.
  */
 function baseUnitsToDisplayString(baseUnits: bigint): string {
   if (baseUnits < 0n) baseUnits = 0n
   const whole = baseUnits / MIDNIGHT_BASE_UNITS
   const fraction = baseUnits % MIDNIGHT_BASE_UNITS
-  // Pad fraction to 6 digits, then trim trailing zeros (but keep at least 1 decimal)
   const fracStr = fraction.toString().padStart(6, '0')
   const trimmed = fracStr.replace(/0+$/, '') || '0'
   return `${whole}.${trimmed}`
 }
 
-/**
- * Sum all bigint values in a Record<TokenType, bigint>.
- */
-function sumTokenRecord(record: Record<TokenType, bigint>): bigint {
-  let total = 0n
-  for (const val of Object.values(record)) {
-    if (typeof val === 'bigint') {
-      total += val
-    }
-  }
-  return total
-}
-
 // ─── Cached ConnectedAPI session ─────────────────────────────────────────────
-// We cache the ConnectedAPI so we do not trigger a new authorization popup
-// on every heartbeat refresh.
 let cachedConnectedApi: ConnectedAPI | null = null
 let cachedNetworkId: string | null = null
 
@@ -100,9 +81,8 @@ export function clearCachedConnectedApi() {
 
 /**
  * Get or re-use the official 1AM ConnectedAPI.
- * Calls InitialAPI.connect(networkId) exactly once per session.
  */
-async function getConnectedAPI(
+export async function getConnectedAPI(
   rawProvider: UnknownProvider,
   networkId: string
 ): Promise<ConnectedAPI | null> {
@@ -113,7 +93,7 @@ async function getConnectedAPI(
   const initialAPI = rawProvider as unknown as InitialAPI
 
   if (typeof initialAPI?.connect !== 'function') {
-    console.warn('[MidnightWallet] 1AM provider does not expose .connect() method; available keys:', Object.keys(rawProvider))
+    console.warn('[MidnightWallet] 1AM provider does not expose .connect() method; available keys:', Object.keys(rawProvider || {}))
     return null
   }
 
@@ -122,7 +102,7 @@ async function getConnectedAPI(
     const connectedApi = await initialAPI.connect(networkId)
     cachedConnectedApi = connectedApi
     cachedNetworkId = networkId
-    console.log('[MidnightWallet] ConnectedAPI obtained; available methods:', Object.keys(connectedApi as any))
+    console.log('[MidnightWallet] ConnectedAPI obtained; available keys:', Object.keys(connectedApi as any || {}))
     return connectedApi
   } catch (err) {
     console.warn('[MidnightWallet] 1AM InitialAPI.connect() failed:', err)
@@ -133,7 +113,7 @@ async function getConnectedAPI(
 // ─── Address extraction ───────────────────────────────────────────────────────
 
 /**
- * Extract wallet addresses using the official ConnectedAPI methods.
+ * Extract wallet addresses using official ConnectedAPI + resilient candidate scanner.
  */
 export async function extractMidnightAddresses(
   enabledApi: unknown,
@@ -141,96 +121,126 @@ export async function extractMidnightAddresses(
 ): Promise<ExtractedAddresses> {
   const networkId = process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK ?? 'preview'
 
-  console.log('[MidnightWallet] Extracting addresses via official ConnectedAPI')
-
-  // Try official API first
-  const connectedApi = await getConnectedAPI(rawProvider, networkId)
-
-  if (connectedApi) {
-    let shieldedAddress: string | undefined
-    let unshieldedAddress: string | undefined
-    let extractedNetworkId: string | undefined
-
-    try {
-      const shieldedResult = await connectedApi.getShieldedAddresses()
-      shieldedAddress = shieldedResult.shieldedAddress
-      console.log('[MidnightWallet] getShieldedAddresses():', shieldedResult)
-    } catch (err) {
-      console.warn('[MidnightWallet] getShieldedAddresses() failed:', err)
-    }
-
-    try {
-      const unshieldedResult = await connectedApi.getUnshieldedAddress()
-      unshieldedAddress = unshieldedResult.unshieldedAddress
-      console.log('[MidnightWallet] getUnshieldedAddress():', unshieldedResult)
-    } catch (err) {
-      console.warn('[MidnightWallet] getUnshieldedAddress() failed:', err)
-    }
-
-    // Infer networkId from address prefix
-    const anyAddress = shieldedAddress || unshieldedAddress || ''
-    if (anyAddress.toLowerCase().includes('preprod')) extractedNetworkId = 'preprod'
-    else if (anyAddress.toLowerCase().includes('preview')) extractedNetworkId = 'preview'
-    else if (anyAddress.toLowerCase().includes('mainnet')) extractedNetworkId = 'mainnet'
-    else extractedNetworkId = networkId
-
-    const finalAddress = unshieldedAddress || shieldedAddress || ''
-
-    console.log('[MidnightWallet] Address extraction result:', {
-      address: finalAddress,
-      shieldedAddress,
-      unshieldedAddress,
-      networkId: extractedNetworkId,
-    })
-
-    if (finalAddress) {
-      return { address: finalAddress, shieldedAddress, unshieldedAddress, networkId: extractedNetworkId }
-    }
-  }
-
-  // Fallback: try legacy/undocumented approaches if official API did not produce an address
-  console.warn('[MidnightWallet] Official ConnectedAPI address extraction failed; falling back to heuristic scan')
-  return legacyExtractAddresses(enabledApi, rawProvider)
-}
-
-async function legacyExtractAddresses(
-  enabledApi: unknown,
-  rawProvider: UnknownProvider
-): Promise<ExtractedAddresses> {
-  const isValidStr = (v: unknown): v is string =>
-    typeof v === 'string' && v.trim().length > 0 && !v.includes('http://') && !v.includes('https://')
-
-  if (isValidStr(enabledApi)) return { address: (enabledApi as string).trim() }
-  if (Array.isArray(enabledApi) && enabledApi.length > 0 && isValidStr(enabledApi[0]))
-    return { address: enabledApi[0].trim() }
-
-  const candidates: UnknownProvider[] = []
-  if (enabledApi && (typeof enabledApi === 'object' || typeof enabledApi === 'function'))
-    candidates.push(enabledApi as UnknownProvider)
-  if (rawProvider) candidates.push(rawProvider)
+  console.log('[MidnightWallet] Extracting addresses...')
 
   let shieldedAddress: string | undefined
   let unshieldedAddress: string | undefined
   let primaryAddress: string | undefined
   let extractedNetworkId: string | undefined
 
-  for (const candidate of candidates) {
-    if (!candidate) continue
-    if (!shieldedAddress && isValidStr(candidate.shieldedAddress)) shieldedAddress = candidate.shieldedAddress.trim()
-    if (!unshieldedAddress && isValidStr(candidate.unshieldedAddress)) unshieldedAddress = candidate.unshieldedAddress.trim()
-    if (!primaryAddress && isValidStr(candidate.address)) primaryAddress = candidate.address.trim()
+  // 1. Try official ConnectedAPI methods
+  const connectedApi = await getConnectedAPI(rawProvider, networkId)
+
+  if (connectedApi) {
+    try {
+      if (typeof connectedApi.getShieldedAddresses === 'function') {
+        const shieldedResult: any = await connectedApi.getShieldedAddresses()
+        if (typeof shieldedResult === 'string') {
+          shieldedAddress = shieldedResult
+        } else if (shieldedResult && typeof shieldedResult === 'object') {
+          shieldedAddress = shieldedResult.shieldedAddress || shieldedResult.address
+        }
+        console.log('[MidnightWallet] getShieldedAddresses() resolved:', shieldedAddress)
+      }
+    } catch (err) {
+      console.warn('[MidnightWallet] getShieldedAddresses() warning:', err)
+    }
+
+    try {
+      if (typeof connectedApi.getUnshieldedAddress === 'function') {
+        const unshieldedResult: any = await connectedApi.getUnshieldedAddress()
+        if (typeof unshieldedResult === 'string') {
+          unshieldedAddress = unshieldedResult
+        } else if (unshieldedResult && typeof unshieldedResult === 'object') {
+          unshieldedAddress = unshieldedResult.unshieldedAddress || unshieldedResult.address
+        }
+        console.log('[MidnightWallet] getUnshieldedAddress() resolved:', unshieldedAddress)
+      }
+    } catch (err) {
+      console.warn('[MidnightWallet] getUnshieldedAddress() warning:', err)
+    }
+  }
+
+  // 2. Resilient fallback across all candidates (enabledApi, connectedApi, rawProvider)
+  if (!unshieldedAddress && !shieldedAddress) {
+    console.log('[MidnightWallet] Running deep candidate address scan')
+    const candidates = [enabledApi, connectedApi, rawProvider].filter(Boolean) as Record<string, any>[]
+
+    const methodNames = [
+      'getUnshieldedAddress',
+      'getShieldedAddresses',
+      'getShieldedAddress',
+      'getDustAddress',
+      'getAccounts',
+      'getAddress',
+      'getAddresses',
+      'state',
+      'getState',
+      'status',
+    ]
+
+    const isMidnightAddr = (str: unknown): str is string =>
+      typeof str === 'string' &&
+      str.trim().length > 0 &&
+      !str.includes('http://') &&
+      !str.includes('https://') &&
+      !str.includes('contract') &&
+      !str.includes('escrow')
+
+    for (const cand of candidates) {
+      if (!cand || (typeof cand !== 'object' && typeof cand !== 'function')) continue
+
+      // Direct property check
+      if (!unshieldedAddress && isMidnightAddr(cand.unshieldedAddress)) unshieldedAddress = cand.unshieldedAddress
+      if (!shieldedAddress && isMidnightAddr(cand.shieldedAddress)) shieldedAddress = cand.shieldedAddress
+      if (!primaryAddress && isMidnightAddr(cand.address)) primaryAddress = cand.address
+
+      // Method invocations
+      for (const m of methodNames) {
+        if (typeof cand[m] === 'function') {
+          try {
+            const rawRes = await cand[m]()
+            if (isMidnightAddr(rawRes)) {
+              if (!primaryAddress) primaryAddress = rawRes
+            } else if (Array.isArray(rawRes) && rawRes.length > 0 && isMidnightAddr(rawRes[0])) {
+              if (!primaryAddress) primaryAddress = rawRes[0]
+            } else if (rawRes && typeof rawRes === 'object') {
+              const resObj = rawRes as Record<string, any>
+              if (!unshieldedAddress && isMidnightAddr(resObj.unshieldedAddress)) unshieldedAddress = resObj.unshieldedAddress
+              if (!shieldedAddress && isMidnightAddr(resObj.shieldedAddress)) shieldedAddress = resObj.shieldedAddress
+              if (!primaryAddress && isMidnightAddr(resObj.address)) primaryAddress = resObj.address
+            }
+          } catch {
+            // ignore method error
+          }
+        }
+      }
+    }
   }
 
   const finalAddress = unshieldedAddress || shieldedAddress || primaryAddress || ''
-  if (!extractedNetworkId && finalAddress) {
+
+  if (finalAddress) {
     const lower = finalAddress.toLowerCase()
     if (lower.includes('preprod')) extractedNetworkId = 'preprod'
     else if (lower.includes('preview')) extractedNetworkId = 'preview'
     else if (lower.includes('mainnet')) extractedNetworkId = 'mainnet'
+    else extractedNetworkId = networkId
   }
 
-  console.log('[MidnightWallet] Legacy address extraction result:', { finalAddress, shieldedAddress, unshieldedAddress, extractedNetworkId })
-  return { address: finalAddress, shieldedAddress, unshieldedAddress, networkId: extractedNetworkId }
+  console.log('[MidnightWallet] Final address extraction result:', {
+    address: finalAddress,
+    shieldedAddress,
+    unshieldedAddress,
+    networkId: extractedNetworkId,
+  })
+
+  return {
+    address: finalAddress,
+    shieldedAddress,
+    unshieldedAddress,
+    networkId: extractedNetworkId,
+  }
 }
 
 // ─── Balance extraction ───────────────────────────────────────────────────────
@@ -244,16 +254,6 @@ export interface MidnightBalances {
 
 /**
  * Fetch live balances from the connected 1AM wallet using the OFFICIAL API.
- *
- * Official methods used:
- *   - connectedApi.getUnshieldedBalances() => Record<TokenType, bigint>
- *   - connectedApi.getShieldedBalances()   => Record<TokenType, bigint>
- *
- * Denomination: 1 display token = 1_000_000 base units (bigint)
- *
- * The 1AM extension UI shows:
- *   "UNSHIELDED BALANCE: 5000.0" = getUnshieldedBalances() total = 5_000_000_000n base units
- *   "SHIELDED HOLDINGS: 0"       = getShieldedBalances() total = 0n base units
  */
 export async function extractMidnightBalances(
   _enabledApi: unknown,
@@ -276,27 +276,26 @@ export async function extractMidnightBalances(
 
   // ── Unshielded Balances ───────────────────────────────────────────────────
   try {
-    const unshieldedRecord = await connectedApi.getUnshieldedBalances()
-    console.log('[MidnightWallet] getUnshieldedBalances() raw:', unshieldedRecord)
+    if (typeof connectedApi.getUnshieldedBalances === 'function') {
+      const unshieldedRecord = await connectedApi.getUnshieldedBalances()
+      console.log('[MidnightWallet] getUnshieldedBalances() raw:', unshieldedRecord)
 
-    // Sum all tokens in the unshielded balance map (bigint values)
-    for (const [tokenType, rawVal] of Object.entries(unshieldedRecord)) {
-      // The API guarantees bigint. Guard against extensions returning number/string.
-      let val: bigint
-      if (typeof rawVal === 'bigint') {
-        val = rawVal
-      } else if (typeof rawVal === 'number') {
-        console.warn(`[MidnightWallet] getUnshieldedBalances() token ${tokenType} returned JS number instead of bigint:`, rawVal)
-        val = BigInt(Math.round(rawVal))
-      } else if (typeof rawVal === 'string') {
-        console.warn(`[MidnightWallet] getUnshieldedBalances() token ${tokenType} returned string instead of bigint:`, rawVal)
-        val = BigInt(rawVal)
-      } else {
-        console.warn(`[MidnightWallet] getUnshieldedBalances() token ${tokenType} unexpected type:`, typeof rawVal, rawVal)
-        continue
+      if (unshieldedRecord && typeof unshieldedRecord === 'object') {
+        for (const [tokenType, rawVal] of Object.entries(unshieldedRecord)) {
+          let val: bigint
+          if (typeof rawVal === 'bigint') {
+            val = rawVal
+          } else if (typeof rawVal === 'number') {
+            val = BigInt(Math.round(rawVal))
+          } else if (typeof rawVal === 'string') {
+            val = BigInt(rawVal)
+          } else {
+            continue
+          }
+          console.log(`[MidnightWallet] Unshielded token "${tokenType}": ${val}n base units`)
+          unshieldedBaseUnits += val
+        }
       }
-      console.log(`[MidnightWallet] Unshielded token "${tokenType}": ${val}n base units`)
-      unshieldedBaseUnits += val
     }
   } catch (err) {
     console.warn('[MidnightWallet] getUnshieldedBalances() failed:', err)
@@ -304,24 +303,26 @@ export async function extractMidnightBalances(
 
   // ── Shielded Balances ─────────────────────────────────────────────────────
   try {
-    const shieldedRecord = await connectedApi.getShieldedBalances()
-    console.log('[MidnightWallet] getShieldedBalances() raw:', shieldedRecord)
+    if (typeof connectedApi.getShieldedBalances === 'function') {
+      const shieldedRecord = await connectedApi.getShieldedBalances()
+      console.log('[MidnightWallet] getShieldedBalances() raw:', shieldedRecord)
 
-    for (const [tokenType, rawVal] of Object.entries(shieldedRecord)) {
-      let val: bigint
-      if (typeof rawVal === 'bigint') {
-        val = rawVal
-      } else if (typeof rawVal === 'number') {
-        console.warn(`[MidnightWallet] getShieldedBalances() token ${tokenType} returned JS number instead of bigint:`, rawVal)
-        val = BigInt(Math.round(rawVal))
-      } else if (typeof rawVal === 'string') {
-        val = BigInt(rawVal)
-      } else {
-        console.warn(`[MidnightWallet] getShieldedBalances() token ${tokenType} unexpected type:`, typeof rawVal, rawVal)
-        continue
+      if (shieldedRecord && typeof shieldedRecord === 'object') {
+        for (const [tokenType, rawVal] of Object.entries(shieldedRecord)) {
+          let val: bigint
+          if (typeof rawVal === 'bigint') {
+            val = rawVal
+          } else if (typeof rawVal === 'number') {
+            val = BigInt(Math.round(rawVal))
+          } else if (typeof rawVal === 'string') {
+            val = BigInt(rawVal)
+          } else {
+            continue
+          }
+          console.log(`[MidnightWallet] Shielded token "${tokenType}": ${val}n base units`)
+          shieldedBaseUnits += val
+        }
       }
-      console.log(`[MidnightWallet] Shielded token "${tokenType}": ${val}n base units`)
-      shieldedBaseUnits += val
     }
   } catch (err) {
     console.warn('[MidnightWallet] getShieldedBalances() failed:', err)

@@ -1,0 +1,191 @@
+// NovaPay Escrow Contract
+// Language: Compact 0.23.0
+// Compiler: compactc 0.31.1
+
+pragma language_version >= 0.23;
+
+import CompactStandardLibrary;
+
+// ─── State Model ──────────────────────────────────────────────────────────────
+
+export struct EscrowRecord {
+  payer:     Bytes<32>,
+  payee:     Bytes<32>,
+  arbiter:   Bytes<32>,
+  amount:    Uint<128>,
+  status:    Uint<8>, // 0=CREATED, 1=FUNDED, 2=LOCKED, 3=RELEASED, 4=REFUNDED, 5=CANCELLED, 6=DISPUTED
+  createdAt: Uint<64>,
+  deadline:  Uint<64>
+}
+
+// Map from escrow ID (32-byte hash) -> EscrowRecord
+export ledger escrows: Map<Bytes<32>, EscrowRecord>;
+
+// ─── Circuits ─────────────────────────────────────────────────────────────────
+
+// Create a new escrow record.
+export circuit createEscrow(
+  escrowId:  Bytes<32>,
+  payer:     Bytes<32>,
+  payee:     Bytes<32>,
+  arbiter:   Bytes<32>,
+  amount:    Uint<128>,
+  createdAt: Uint<64>,
+  deadline:  Uint<64>
+): [] {
+  const public_id = disclose(escrowId);
+  const public_payer = disclose(payer);
+  const public_payee = disclose(payee);
+  const public_arbiter = disclose(arbiter);
+  const public_amount = disclose(amount);
+  const public_created_at = disclose(createdAt);
+  const public_deadline = disclose(deadline);
+
+  assert(!escrows.member(public_id), "Escrow ID already exists");
+  assert(public_amount > 0, "Amount must be greater than zero");
+  assert(public_deadline > public_created_at, "Deadline must be after creation time");
+  assert(public_payer != public_payee, "Payer and payee must be different");
+
+  escrows.insert(public_id, EscrowRecord {
+    payer:     public_payer,
+    payee:     public_payee,
+    arbiter:   public_arbiter,
+    amount:    public_amount,
+    status:    0, // STATUS_CREATED
+    createdAt: public_created_at,
+    deadline:  public_deadline
+  });
+}
+
+// Fund an existing escrow (CREATED -> FUNDED).
+export circuit fundEscrow(
+  escrowId: Bytes<32>,
+  callerPk: Bytes<32>
+): [] {
+  const public_id = disclose(escrowId);
+  const public_caller = disclose(callerPk);
+
+  assert(escrows.member(public_id), "Escrow does not exist");
+  const escrow = escrows.lookup(public_id);
+
+  assert(escrow.status == 0, "Escrow must be in CREATED state to fund");
+  assert(escrow.payer == public_caller, "Only the payer can fund this escrow");
+
+  escrows.insert(public_id, EscrowRecord {
+    payer:     escrow.payer,
+    payee:     escrow.payee,
+    arbiter:   escrow.arbiter,
+    amount:    escrow.amount,
+    status:    1, // STATUS_FUNDED
+    createdAt: escrow.createdAt,
+    deadline:  escrow.deadline
+  });
+}
+
+// Lock the funded escrow (FUNDED -> LOCKED).
+export circuit lockEscrow(
+  escrowId: Bytes<32>,
+  callerPk: Bytes<32>
+): [] {
+  const public_id = disclose(escrowId);
+  const public_caller = disclose(callerPk);
+
+  assert(escrows.member(public_id), "Escrow does not exist");
+  const escrow = escrows.lookup(public_id);
+
+  assert(escrow.status == 1, "Escrow must be in FUNDED state to lock");
+  assert(escrow.payer == public_caller, "Only the payer can lock this escrow");
+
+  escrows.insert(public_id, EscrowRecord {
+    payer:     escrow.payer,
+    payee:     escrow.payee,
+    arbiter:   escrow.arbiter,
+    amount:    escrow.amount,
+    status:    2, // STATUS_LOCKED
+    createdAt: escrow.createdAt,
+    deadline:  escrow.deadline
+  });
+}
+
+// Release the escrow to the payee (LOCKED -> RELEASED).
+export circuit releaseEscrow(
+  escrowId: Bytes<32>,
+  callerPk: Bytes<32>
+): [] {
+  const public_id = disclose(escrowId);
+  const public_caller = disclose(callerPk);
+
+  assert(escrows.member(public_id), "Escrow does not exist");
+  const escrow = escrows.lookup(public_id);
+
+  assert(escrow.status == 2, "Escrow must be in LOCKED state to release");
+  assert(escrow.payee == public_caller || escrow.arbiter == public_caller, "Only payee or arbiter can release escrow");
+
+  escrows.insert(public_id, EscrowRecord {
+    payer:     escrow.payer,
+    payee:     escrow.payee,
+    arbiter:   escrow.arbiter,
+    amount:    escrow.amount,
+    status:    3, // STATUS_RELEASED
+    createdAt: escrow.createdAt,
+    deadline:  escrow.deadline
+  });
+}
+
+// Refund the escrow back to the payer (FUNDED or LOCKED -> REFUNDED).
+export circuit refundEscrow(
+  escrowId:    Bytes<32>,
+  callerPk:    Bytes<32>,
+  currentTime: Uint<64>
+): [] {
+  const public_id = disclose(escrowId);
+  const public_caller = disclose(callerPk);
+  const public_current_time = disclose(currentTime);
+
+  assert(escrows.member(public_id), "Escrow does not exist");
+  const escrow = escrows.lookup(public_id);
+
+  assert(escrow.status == 1 || escrow.status == 2, "Escrow must be in FUNDED or LOCKED state to refund");
+
+  if (escrow.arbiter == public_caller) {
+    // Arbiter can refund at any time
+  } else {
+    assert(escrow.payer == public_caller, "Only payer or arbiter can refund");
+    assert(public_current_time >= escrow.deadline, "Payer can only refund after deadline");
+  }
+
+  escrows.insert(public_id, EscrowRecord {
+    payer:     escrow.payer,
+    payee:     escrow.payee,
+    arbiter:   escrow.arbiter,
+    amount:    escrow.amount,
+    status:    4, // STATUS_REFUNDED
+    createdAt: escrow.createdAt,
+    deadline:  escrow.deadline
+  });
+}
+
+// Cancel the escrow before funding (CREATED -> CANCELLED).
+export circuit cancelEscrow(
+  escrowId: Bytes<32>,
+  callerPk: Bytes<32>
+): [] {
+  const public_id = disclose(escrowId);
+  const public_caller = disclose(callerPk);
+
+  assert(escrows.member(public_id), "Escrow does not exist");
+  const escrow = escrows.lookup(public_id);
+
+  assert(escrow.status == 0, "Escrow can only be cancelled in CREATED state");
+  assert(escrow.payer == public_caller, "Only payer can cancel this escrow");
+
+  escrows.insert(public_id, EscrowRecord {
+    payer:     escrow.payer,
+    payee:     escrow.payee,
+    arbiter:   escrow.arbiter,
+    amount:    escrow.amount,
+    status:    5, // STATUS_CANCELLED
+    createdAt: escrow.createdAt,
+    deadline:  escrow.deadline
+  });
+}
