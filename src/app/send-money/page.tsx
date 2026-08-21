@@ -112,7 +112,7 @@ export default function SendMoneyPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ recipientAddress: address })
+        body: JSON.stringify({ recipientAddress: address, senderAddress: publicKey })
       })
 
       const data = await res.json()
