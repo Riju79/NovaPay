@@ -153,6 +153,12 @@ export default function SendMoneyPage() {
       if (isNaN(amountNum) || amountNum <= 0) {
         throw new Error('Invalid transfer amount')
       }
+
+      const availableBalNum = parseFloat(localBalance || '0')
+      if (availableBalNum > 0 && amountNum > availableBalNum) {
+        throw new Error(`Insufficient wallet balance. You have ${localBalance} tDUST available in your wallet.`)
+      }
+
       const amountBaseUnits = BigInt(Math.round(amountNum * 1_000_000))
 
       // Step 2: Trigger 1AM Wallet Extension Popup for Authorization & Transfer
@@ -196,6 +202,9 @@ export default function SendMoneyPage() {
           clearCachedConnectedApi()
 
           const errMsg = walletErr?.message || String(walletErr || '')
+          if (errMsg.toLowerCase().includes('insufficient funds') || errMsg.toLowerCase().includes('insufficient')) {
+            throw new Error('Insufficient wallet balance in your 1AM wallet to cover transfer + network fees.')
+          }
           if (errMsg.toLowerCase().includes('disconnected') || errMsg.toLowerCase().includes('closed') || errMsg.toLowerCase().includes('rejected')) {
             throw new Error('1AM Wallet popup was closed or disconnected. Click Send Money again to retry.')
           }

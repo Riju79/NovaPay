@@ -79,6 +79,9 @@ export class RecurringContractClient {
           console.warn(`[RecurringClient] 1AM transfer fallback to server endpoint:`, err)
           clearCachedConnectedApi()
           const errMsg = err?.message || String(err || '')
+          if (errMsg.toLowerCase().includes('insufficient funds') || errMsg.toLowerCase().includes('insufficient')) {
+            throw new Error('Insufficient wallet balance in your 1AM wallet to cover recurring transfer + fees.')
+          }
           if (errMsg.toLowerCase().includes('disconnected') || errMsg.toLowerCase().includes('closed')) {
             throw new Error('1AM Wallet popup was closed or disconnected.')
           }
