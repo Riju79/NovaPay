@@ -3,7 +3,7 @@
  */
 
 import { getRaw1AMProvider } from '@/lib/midnight-wallet/detect'
-import { getConnectedAPI } from '@/lib/midnight-wallet/utils'
+import { getConnectedAPI, clearCachedConnectedApi } from '@/lib/midnight-wallet/utils'
 import { EscrowStatus, EscrowDetails } from './types'
 import { API_URL } from '@/config'
 
@@ -77,8 +77,13 @@ export class EscrowContractClient {
             console.log(`[EscrowClient] 1AM makeTransfer submitted tx:`, transferRes.tx)
             return { txHash: transferRes.tx }
           }
-        } catch (err) {
+        } catch (err: any) {
           console.warn(`[EscrowClient] 1AM transfer fallback to server endpoint:`, err)
+          clearCachedConnectedApi()
+          const errMsg = err?.message || String(err || '')
+          if (errMsg.toLowerCase().includes('disconnected') || errMsg.toLowerCase().includes('closed')) {
+            throw new Error('1AM Wallet popup was closed or disconnected.')
+          }
         }
       }
     }

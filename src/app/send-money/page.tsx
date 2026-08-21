@@ -6,7 +6,7 @@ import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import { API_URL } from '@/config'
 import { getRaw1AMProvider } from '@/lib/midnight-wallet/detect'
-import { getConnectedAPI } from '@/lib/midnight-wallet/utils'
+import { getConnectedAPI, clearCachedConnectedApi } from '@/lib/midnight-wallet/utils'
 import { escrowInitialize, escrowDeposit, escrowApprove, xlmToStroops, NATIVE_TOKEN_TESTNET } from '@/lib/contract'
 import {
   Send,
@@ -172,23 +172,34 @@ export default function SendMoneyPage() {
 
       if (typeof connectedApi.makeTransfer === 'function') {
         console.log('[SendMoney] Triggering 1AM Wallet authentication popup...')
-        const transferRes = await connectedApi.makeTransfer(
-          [
-            {
-              kind: 'unshielded',
-              type: '0x00',
-              value: amountBaseUnits,
-              recipient: recipient.trim(),
-            },
-          ],
-          { payFees: true }
-        )
+        try {
+          const transferRes = await connectedApi.makeTransfer(
+            [
+              {
+                kind: 'unshielded',
+                type: '0x00',
+                value: amountBaseUnits,
+                recipient: recipient.trim(),
+              },
+            ],
+            { payFees: true }
+          )
 
-        if (transferRes && transferRes.tx) {
-          submittedTxHash = transferRes.tx
-          console.log('[SendMoney] 1AM wallet transaction confirmed:', submittedTxHash)
-        } else {
-          throw new Error('1AM wallet transaction was not completed.')
+          if (transferRes && transferRes.tx) {
+            submittedTxHash = transferRes.tx
+            console.log('[SendMoney] 1AM wallet transaction confirmed:', submittedTxHash)
+          } else {
+            throw new Error('1AM wallet transaction was not completed.')
+          }
+        } catch (walletErr: any) {
+          console.warn('[SendMoney] 1AM makeTransfer error:', walletErr)
+          clearCachedConnectedApi()
+
+          const errMsg = walletErr?.message || String(walletErr || '')
+          if (errMsg.toLowerCase().includes('disconnected') || errMsg.toLowerCase().includes('closed') || errMsg.toLowerCase().includes('rejected')) {
+            throw new Error('1AM Wallet popup was closed or disconnected. Click Send Money again to retry.')
+          }
+          throw walletErr
         }
       } else {
         console.warn('[SendMoney] connectedApi.makeTransfer is unavailable; calling server handler.')
