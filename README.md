@@ -11,9 +11,12 @@
 </p>
 
 ```text
-╔╗╔  ╔═╗  ╦  ╦  ╔═╗  ╔═╗  ╔═╗  ╦  ╦
-║║║  ║ ║  ╚╗╔╝  ╠═╣  ╠═╝  ╠═╣  ╚╗╔╝
-╝╚╝  ╚═╝   ╚╝   ╩ ╩  ╩    ╩ ╩   ╩  
+███╗   ██╗██████╗ ██╗   ██╗█████╗ ██████╗ █████╗ ██╗   ██╗
+████╗  ██║██╔══██╗██║   ██║██╔══██╗██╔══██╗██╔══██╗╚██╗ ██╔╝
+██╔██╗ ██║██║  ██║██║   ██║███████║██████╔╝███████║ ╚████╔╝ 
+██║╚██╗██║██║  ██║╚██╗ ██╔╝██╔══██║██╔═══╝ ██╔══██║  ╚██╔╝  
+██║ ╚████║╚██████╔╝ ╚████╔╝ ██║  ██║██║     ██║  ██║   ██║   
+╚═╝  ╚═══╝ ╚═════╝   ╚═══╝  ╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝   ╚═╝   
 ```
 
 <h3 align="center">💸 Decentralized Zero-Knowledge Remittance Protocol on Midnight Network</h3>
@@ -322,6 +325,7 @@ novapay/
 │   └── recurring_billing/         # Recurring Billing Compact Contract
 │       └── managed/contract/      # Compiled JS/TS Artifacts
 ├── public/
+│   ├── novapay-banner.svg         # Vibrant SVG Vector Header Banner
 │   ├── screenshots/               # Verified UI Screenshots
 │   └── icon.svg
 ├── scripts/
