@@ -1,25 +1,32 @@
-# NovaPay 💸
+<div align="center">
 
-> **Decentralized Zero-Knowledge Cross-Border Remittance & Payment Portal**
-> Powered by the **Midnight Blockchain Network** (Preview Testnet) and **Compact Smart Contracts**.
+[![Built On](https://img.shields.io/badge/BUILT%20ON-MIDNIGHT%20NETWORK-6366f1?style=for-the-badge)](https://preview.midnight.network)
+[![Network](https://img.shields.io/badge/NETWORK-PREVIEW%20TESTNET-10b981?style=for-the-badge)](https://preview.midnight.network)
+[![Frontend](https://img.shields.io/badge/FRONTEND-NEXT.JS%2016-000000?style=for-the-badge&logo=nextdotjs)](https://nextjs.org)
+<br/>
+[![Smart Contracts](https://img.shields.io/badge/SMART%20CONTRACTS-COMPACT%20ZK%20CIRCUITS-8b5cf6?style=for-the-badge)](https://midnight.network)
+[![Wallet](https://img.shields.io/badge/WALLET-1AM%20WALLET-f59e0b?style=for-the-badge)](https://explorer.1am.xyz)
+[![GitHub](https://img.shields.io/badge/GITHUB-RIJU79%2FNOVAPAY-24292e?style=for-the-badge&logo=github)](https://github.com/Riju79/NovaPay)
+[![License](https://img.shields.io/badge/LICENSE-MIT-green?style=for-the-badge)](LICENSE)
 
-[![CI/CD Pipeline](https://github.com/Riju79/NovaPay/actions/workflows/ci.yml/badge.svg)](https://github.com/Riju79/NovaPay/actions/workflows/ci.yml)
-[![Network](https://img.shields.io/badge/Network-Midnight%20Preview-6366f1?style=flat-square)](https://preview.midnight.network)
-[![Smart Contracts](https://img.shields.io/badge/Smart%20Contracts-Compact%20ZK-10b981?style=flat-square)](https://midnight.network)
-[![Wallet Connector](https://img.shields.io/badge/Wallet-1AM%20DApp%20Connector-f59e0b?style=flat-square)](https://explorer.1am.xyz)
-[![Frontend](https://img.shields.io/badge/Frontend-Next.js%2016-black?style=flat-square&logo=nextdotjs)](https://nextjs.org)
-[![Backend](https://img.shields.io/badge/Backend-Express%20%2B%20Prisma-475569?style=flat-square&logo=express)](https://expressjs.com)
+```text
+███╗   ██╗██╗  ██╗██╗   ██╗██████╗  █████╗ ██╗   ██╗
+████╗  ██║██║  ██║██║   ██║██╔══██╗██╔══██╗╚██╗ ██╔╝
+██╔██╗ ██║██║  ██║██║   ██║██████╔╝███████║ ╚████╔╝ 
+██║╚██╗██║██║  ██║╚██╗ ██╔╝██╔═══╝ ██╔══██║  ╚██╔╝  
+██║ ╚████║╚█████╔╝ ╚████╔╝ ██║     ██║  ██║   ██║   
+╚═╝  ╚═══╝ ╚════╝   ╚═══╝  ╚═╝     ╚═╝  ╚═╝   ╚═╝   
+```
+
+### 💸 Decentralized Zero-Knowledge Cross-Border Remittance Protocol on Midnight
+
+**Send P2P Remittances · Create Invoices · ZK Escrow Agreements · Pre-Authorized Recurring Billing · Everything On-Chain**
+
+[🌐 Live App](https://novapay-steel.vercel.app) · [📚 Documentation](#-what-is-novapay) · [🐙 GitHub Repo](https://github.com/Riju79/NovaPay) · [🔍 1AM Explorer](https://explorer.1am.xyz) · [⚙️ Backend API](https://novapay-w4zv.onrender.com)
 
 ---
 
-## 🔗 Quick Links & Resources
-
-* 🌐 **Live Application**: [https://novapay-steel.vercel.app](https://novapay-steel.vercel.app) *(Vercel Production)*
-* ⚙️ **Backend API Server**: [https://novapay-w4zv.onrender.com](https://novapay-w4zv.onrender.com) *(Render Production)*
-* 📦 **GitHub Repository**: [https://github.com/Riju79/NovaPay](https://github.com/Riju79/NovaPay)
-* 🔍 **Blockchain Explorer**: [https://explorer.1am.xyz](https://explorer.1am.xyz) *(1AM Midnight Explorer)*
-
----
+</div>
 
 ## ✨ What Is NovaPay?
 
@@ -194,13 +201,13 @@ flowchart TD
 
 ## 📸 Platform Screenshots
 
-### 1. Wallet Connection & Live Account Dashboard
-Displays connected Midnight Bech32m public addresses (`mn_addr_preview1...`), live `tDUST` token balances, and wallet session controls.
+### 1. Payment Methods & Live Balance Dashboard
+Manages connected Midnight Bech32m public addresses (`mn_addr_prev...3uhy7qf0q3ta`), live native `tDUST` token balances (Unshielded: `663.0 tDUST`, Shielded: `0.0 tDUST`), and wallet session state.
 
-![Wallet Connected Display](./public/screenshots/wallet-connected.png)
+![Payment Methods & Active Balance Display](./public/screenshots/wallet-connected.png)
 
-### 2. Activity Ledger & System Notifications
-Real-time transaction tracking showing incoming and outgoing remittances, confirmation statuses, and deep-links to 1AM Explorer.
+### 2. Activity Audit Log & Real-Time Alert Feed
+Real-time transaction tracking showing total logged transactions (`14 Logged`), pending alerts (`26 Pending`), request payments, received funds, and deep-links to 1AM Explorer.
 
 ![Activity Log & Notifications](./public/screenshots/activity-log.png)
 
