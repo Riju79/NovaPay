@@ -211,12 +211,12 @@ flowchart TD
 ### 1. Payment Methods & Live Balance Dashboard
 Manages connected Midnight Bech32m public addresses (`mn_addr_prev...3uhy7qf0q3ta`), live native `tDUST` token balances (Unshielded: `663.0 tDUST`, Shielded: `0.0 tDUST`), and wallet session state.
 
-![Payment Methods & Active Balance Display](./public/screenshots/wallet-connected.png)
+![Payment Methods & Active Balance Display](./public/screenshots/payment-methods.png)
 
 ### 2. Activity Audit Log & Real-Time Alert Feed
 Real-time transaction tracking showing total logged transactions (`14 Logged`), pending alerts (`26 Pending`), request payments, received funds, and deep-links to 1AM Explorer.
 
-![Activity Log & Notifications](./public/screenshots/activity-log.png)
+![Activity Audit Log & Notifications](./public/screenshots/activity-audit.png)
 
 ---
 
