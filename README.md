@@ -1,29 +1,36 @@
-<div align="center">
+<p align="center">
+  <a href="https://preview.midnight.network"><img src="https://img.shields.io/badge/BUILT%20ON-MIDNIGHT%20NETWORK-6366f1?style=flat-square" alt="Built On"/></a>
+  <a href="https://preview.midnight.network"><img src="https://img.shields.io/badge/NETWORK-PREVIEW%20TESTNET-10b981?style=flat-square" alt="Network"/></a>
+  <a href="https://nextjs.org"><img src="https://img.shields.io/badge/FRONTEND-NEXT.JS%2016-000000?style=flat-square&logo=nextdotjs" alt="Frontend"/></a>
+  <br/>
+  <a href="https://midnight.network"><img src="https://img.shields.io/badge/SMART%20CONTRACTS-COMPACT%20ZK%20CIRCUITS-8b5cf6?style=flat-square" alt="Smart Contracts"/></a>
+  <a href="https://explorer.1am.xyz"><img src="https://img.shields.io/badge/WALLET-1AM%20WALLET-f59e0b?style=flat-square" alt="Wallet"/></a>
+  <br/>
+  <a href="https://github.com/Riju79/NovaPay"><img src="https://img.shields.io/badge/GITHUB-RIJU79%2FNOVAPAY-24292e?style=flat-square&logo=github" alt="GitHub"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/LICENSE-MIT-green?style=flat-square" alt="License"/></a>
+</p>
 
-![NOVAPAY Banner](./public/novapay-banner.svg)
+```text
+╔╗╔  ╔═╗  ╦  ╦  ╔═╗  ╔═╗  ╔═╗  ╦  ╦
+║║║  ║ ║  ╚╗╔╝  ╠═╣  ╠═╝  ╠═╣  ╚╗╔╝
+╝╚╝  ╚═╝   ╚╝   ╩ ╩  ╩    ╩ ╩   ╩  
+```
 
-<br/>
+<h3 align="center">💸 Decentralized Zero-Knowledge Remittance Protocol on Midnight Network</h3>
 
-[![Built On](https://img.shields.io/badge/BUILT%20ON-MIDNIGHT%20NETWORK-6366f1?style=for-the-badge)](https://preview.midnight.network)
-[![Network](https://img.shields.io/badge/NETWORK-PREVIEW%20TESTNET-10b981?style=for-the-badge)](https://preview.midnight.network)
-[![Frontend](https://img.shields.io/badge/FRONTEND-NEXT.JS%2016-000000?style=for-the-badge&logo=nextdotjs)](https://nextjs.org)
-[![Smart Contracts](https://img.shields.io/badge/SMART%20CONTRACTS-COMPACT%20ZK%20CIRCUITS-8b5cf6?style=for-the-badge)](https://midnight.network)
-<br/>
-[![Wallet](https://img.shields.io/badge/WALLET-1AM%20WALLET-f59e0b?style=for-the-badge)](https://explorer.1am.xyz)
-[![GitHub](https://img.shields.io/badge/GITHUB-RIJU79%2FNOVAPAY-24292e?style=for-the-badge&logo=github)](https://github.com/Riju79/NovaPay)
-[![License](https://img.shields.io/badge/LICENSE-MIT-green?style=for-the-badge)](LICENSE)
+<p align="center">
+  <b>Send P2P Remittances · Create Invoices · ZK Escrow Agreements · Pre-Authorized Recurring Billing · Everything On-Chain</b>
+</p>
 
-<br/>
-
-### 💸 Decentralized Zero-Knowledge Cross-Border Remittance Protocol on Midnight
-
-**Send P2P Remittances · Create Invoices · ZK Escrow Agreements · Pre-Authorized Recurring Billing · Everything On-Chain**
-
-[🌐 Live App](https://novapay-steel.vercel.app) · [📚 Documentation](#-what-is-novapay) · [🐙 GitHub Repo](https://github.com/Riju79/NovaPay) · [🔍 1AM Explorer](https://explorer.1am.xyz) · [⚙️ Backend API](https://novapay-w4zv.onrender.com)
+<p align="center">
+  <a href="https://novapay-steel.vercel.app">🌐 Live App</a> ·
+  <a href="#-what-is-novapay">📚 Documentation</a> ·
+  <a href="https://github.com/Riju79/NovaPay">🐙 GitHub Repo</a> ·
+  <a href="https://explorer.1am.xyz">🔍 1AM Explorer</a> ·
+  <a href="https://novapay-w4zv.onrender.com">⚙️ Backend API</a>
+</p>
 
 ---
-
-</div>
 
 ## ✨ What Is NovaPay?
 
@@ -315,7 +322,6 @@ novapay/
 │   └── recurring_billing/         # Recurring Billing Compact Contract
 │       └── managed/contract/      # Compiled JS/TS Artifacts
 ├── public/
-│   ├── novapay-banner.svg         # Vibrant SVG Vector Header Banner
 │   ├── screenshots/               # Verified UI Screenshots
 │   └── icon.svg
 ├── scripts/
