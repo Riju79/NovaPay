@@ -2,7 +2,7 @@ import { Response } from 'express'
 import { AuthRequest } from '../middleware/auth'
 import prisma from '../config/db'
 
-// Helper for validating Midnight Bech32m wallet address format (mn_preview1... / mn_addr_preview1...)
+// Helper for validating Midnight Bech32m wallet address format
 const isValidWalletAddress = (address: string): boolean => {
   if (!address || typeof address !== 'string') return false
   const trimmed = address.trim().toLowerCase()
@@ -13,7 +13,6 @@ const isValidWalletAddress = (address: string): boolean => {
 
 /**
  * Endpoint: POST /api/send-money/validate-recipient
- * Validates a recipient's Midnight wallet address.
  */
 export const validateRecipient = async (req: AuthRequest, res: Response) => {
   const { recipientAddress, senderAddress } = req.body
@@ -25,12 +24,10 @@ export const validateRecipient = async (req: AuthRequest, res: Response) => {
   try {
     const trimmedRecipient = recipientAddress.trim()
 
-    // 1. Verify standard Midnight Bech32m address format
     if (!isValidWalletAddress(trimmedRecipient)) {
       return res.status(400).json({ error: 'Invalid Midnight wallet address format' })
     }
 
-    // 2. Determine effective sender wallet address without throwing Prisma errors on undefined userId
     let effectiveSenderWallet: string | null = senderAddress || null
 
     if (!effectiveSenderWallet && req.userId && typeof req.userId === 'string') {
@@ -38,11 +35,10 @@ export const validateRecipient = async (req: AuthRequest, res: Response) => {
         const senderUser = await prisma.user.findUnique({ where: { id: req.userId } })
         if (senderUser) effectiveSenderWallet = senderUser.wallet_address
       } catch {
-        // ignore user lookup failure for wallet-only connections
+        // ignore
       }
     }
 
-    // 3. Prevent sending to own wallet
     if (effectiveSenderWallet && effectiveSenderWallet.toLowerCase() === trimmedRecipient.toLowerCase()) {
       return res.status(400).json({ error: 'Cannot send money to your own wallet address' })
     }
@@ -56,7 +52,6 @@ export const validateRecipient = async (req: AuthRequest, res: Response) => {
 
 /**
  * Endpoint: POST /api/send-money/create-transaction
- * Builds an unsigned payment transaction payload for Midnight ZK circuit execution.
  */
 export const createTransaction = async (req: AuthRequest, res: Response) => {
   const { recipientAddress, amount, purpose, senderAddress } = req.body
@@ -114,10 +109,11 @@ export const createTransaction = async (req: AuthRequest, res: Response) => {
 
 /**
  * Endpoint: POST /api/send-money/submit-transaction
- * Submits the signed transaction payload to Midnight indexer / ledger.
+ * Submits the signed transaction payload to Midnight indexer & database.
+ * Supports lifecycle status: PENDING -> SUCCESS
  */
 export const submitTransaction = async (req: AuthRequest, res: Response) => {
-  const { xdr, purpose, senderAddress } = req.body
+  const { xdr, purpose, senderAddress, status: reqStatus } = req.body
 
   if (!xdr || !purpose) {
     return res.status(400).json({ error: 'Signed transaction payload and purpose are required' })
@@ -144,41 +140,84 @@ export const submitTransaction = async (req: AuthRequest, res: Response) => {
   if (!senderWallet) senderWallet = 'mn_addr_preview1_connected_wallet'
   const recipientWallet = txData.recipient || 'mn_preview1q_recipient_placeholder'
   const paymentAmount = parseFloat(txData.amount) || 10
-  const txHash = `mn_tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+  const txHash = txData.txHash ? String(txData.txHash).trim() : ''
+  const initialStatus = reqStatus || 'PENDING'
 
   try {
-    // Save SUCCESS state to database with Midnight asset type tDUST
-    const dbTx = await prisma.transaction.create({
-      data: {
-        sender_wallet: senderWallet,
-        recipient_wallet: recipientWallet,
-        amount: paymentAmount,
-        asset_type: 'tDUST',
-        purpose,
-        tx_hash: txHash,
-        status: 'SUCCESS'
-      }
-    })
+    // 1. Check if transaction already exists
+    let dbTx = await prisma.transaction.findUnique({ where: { tx_hash: txHash } }).catch(() => null)
 
-    // Generate SUCCESS Notification
-    await prisma.notification.create({
-      data: {
-        wallet_address: senderWallet,
-        title: 'Payment Sent',
-        message: `Successfully sent ${paymentAmount} tDUST to recipient address ${recipientWallet.slice(0, 12)}... for ${purpose}.`,
-        type: 'SUCCESS'
-      }
-    }).catch(() => null)
+    if (!dbTx) {
+      dbTx = await prisma.transaction.create({
+        data: {
+          sender_wallet: senderWallet,
+          recipient_wallet: recipientWallet,
+          amount: paymentAmount,
+          asset_type: 'tDUST',
+          purpose,
+          tx_hash: txHash,
+          status: initialStatus
+        }
+      })
+
+      // 2. Generate Notification for PENDING / SUCCESS
+      await prisma.notification.create({
+        data: {
+          wallet_address: senderWallet,
+          title: initialStatus === 'PENDING' ? 'Transaction Pending' : 'Payment Sent',
+          message: initialStatus === 'PENDING'
+            ? `Transfer of ${paymentAmount} tDUST to ${recipientWallet.slice(0, 12)}... is pending block inclusion on Midnight Network.`
+            : `Successfully sent ${paymentAmount} tDUST to ${recipientWallet.slice(0, 12)}... for ${purpose}.`,
+          type: initialStatus === 'PENDING' ? 'INFO' : 'SUCCESS'
+        }
+      }).catch(() => null)
+    }
 
     return res.json({
       success: true,
       txHash: txHash,
-      ledger: 1000,
       transaction: dbTx
     })
   } catch (err: any) {
     console.error('Transaction submission failure:', err)
     return res.status(400).json({ error: 'Transaction submission failed' })
+  }
+}
+
+/**
+ * Endpoint: POST /api/send-money/confirm-transaction
+ * Updates transaction status from PENDING to SUCCESS or FAILED.
+ */
+export const confirmTransaction = async (req: AuthRequest, res: Response) => {
+  const { txHash, status } = req.body
+
+  if (!txHash) {
+    return res.status(400).json({ error: 'txHash is required' })
+  }
+
+  const finalStatus = status === 'FAILED' ? 'FAILED' : 'SUCCESS'
+
+  try {
+    const updatedTx = await prisma.transaction.update({
+      where: { tx_hash: txHash },
+      data: { status: finalStatus }
+    })
+
+    await prisma.notification.create({
+      data: {
+        wallet_address: updatedTx.sender_wallet,
+        title: finalStatus === 'SUCCESS' ? 'Transaction Confirmed' : 'Transaction Failed',
+        message: finalStatus === 'SUCCESS'
+          ? `Transfer of ${updatedTx.amount} tDUST has been confirmed on Midnight Network block.`
+          : `Transfer of ${updatedTx.amount} tDUST failed block inclusion.`,
+        type: finalStatus === 'SUCCESS' ? 'SUCCESS' : 'ERROR'
+      }
+    }).catch(() => null)
+
+    return res.json({ success: true, transaction: updatedTx })
+  } catch (err: any) {
+    console.error('Confirm transaction error:', err)
+    return res.status(500).json({ error: 'Failed to update transaction status' })
   }
 }
 
@@ -189,12 +228,12 @@ export const getTransactionHistory = async (req: AuthRequest, res: Response) => 
   try {
     const queryAddress = (req.query.walletAddress as string) || (req.query.address as string)
 
-    if (queryAddress) {
+    if (queryAddress && queryAddress.trim()) {
       const history = await prisma.transaction.findMany({
         where: {
           OR: [
-            { sender_wallet: queryAddress },
-            { recipient_wallet: queryAddress }
+            { sender_wallet: queryAddress.trim() },
+            { recipient_wallet: queryAddress.trim() }
           ]
         },
         orderBy: { created_at: 'desc' }
@@ -202,12 +241,23 @@ export const getTransactionHistory = async (req: AuthRequest, res: Response) => 
       return res.json(history)
     }
 
-    const allHistory = await prisma.transaction.findMany({
-      orderBy: { created_at: 'desc' },
-      take: 50
-    })
+    if (req.userId && typeof req.userId === 'string') {
+      const user = await prisma.user.findUnique({ where: { id: req.userId } })
+      if (user && user.wallet_address) {
+        const history = await prisma.transaction.findMany({
+          where: {
+            OR: [
+              { sender_wallet: user.wallet_address },
+              { recipient_wallet: user.wallet_address }
+            ]
+          },
+          orderBy: { created_at: 'desc' }
+        })
+        return res.json(history)
+      }
+    }
 
-    return res.json(allHistory)
+    return res.json([])
   } catch (err: any) {
     console.error('History fetch error:', err)
     return res.status(500).json({ error: 'Server error retrieving transaction history' })

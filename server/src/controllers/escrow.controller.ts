@@ -33,18 +33,19 @@ export const createEscrowRecord = async (req: Request, res: Response) => {
 export const getEscrowRecords = async (req: Request, res: Response) => {
   try {
     const { walletAddress } = req.query
-    const whereClause = walletAddress
-      ? {
-          OR: [
-            { payer: String(walletAddress) },
-            { payee: String(walletAddress) },
-            { arbiter: String(walletAddress) },
-          ],
-        }
-      : {}
+
+    if (!walletAddress || typeof walletAddress !== 'string' || !walletAddress.trim()) {
+      return res.json([])
+    }
 
     const records = await prisma.escrowRecord.findMany({
-      where: whereClause,
+      where: {
+        OR: [
+          { payer: String(walletAddress).trim() },
+          { payee: String(walletAddress).trim() },
+          { arbiter: String(walletAddress).trim() },
+        ],
+      },
       orderBy: { created_at: 'desc' },
     })
 

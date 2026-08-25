@@ -9,9 +9,9 @@ export const getNotifications = async (req: AuthRequest, res: Response) => {
   try {
     const queryAddress = (req.query.walletAddress as string) || (req.query.address as string)
 
-    if (queryAddress) {
+    if (queryAddress && queryAddress.trim()) {
       const notifications = await prisma.notification.findMany({
-        where: { wallet_address: queryAddress },
+        where: { wallet_address: queryAddress.trim() },
         orderBy: { created_at: 'desc' }
       })
       return res.json(notifications)
@@ -28,13 +28,7 @@ export const getNotifications = async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // Default fallback: return all recent notifications
-    const allNotifs = await prisma.notification.findMany({
-      orderBy: { created_at: 'desc' },
-      take: 50
-    })
-
-    return res.json(allNotifs)
+    return res.json([])
   } catch (err: any) {
     console.error('Fetch notifications error:', err)
     return res.status(500).json({ error: 'Server error retrieving notifications' })

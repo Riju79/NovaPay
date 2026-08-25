@@ -122,10 +122,27 @@ export class OneAMMidnightAdapter implements MidnightWalletAdapter {
     const extracted = await extractMidnightAddresses(enabledApi, raw1AM)
 
     if (!extracted.address) {
-      console.error('[MidnightWallet] Failed to extract address from 1AM ConnectedAPI')
+      console.warn('[MidnightWallet] Primary address extraction returned empty; scanning raw provider state...')
+      try {
+        const rawState: any = await (raw1AM as any)?.state?.()
+        if (rawState && typeof rawState === 'object') {
+          const found = rawState.unshieldedAddress || rawState.shieldedAddress || rawState.address
+          if (found) {
+            extracted.address = found
+            extracted.unshieldedAddress = rawState.unshieldedAddress
+            extracted.shieldedAddress = rawState.shieldedAddress
+          }
+        }
+      } catch (e) {
+        console.warn('[MidnightWallet] Raw state scan error:', e)
+      }
+    }
+
+    if (!extracted.address) {
+      console.warn('[MidnightWallet] 1AM extension authorized but no active Midnight address was returned (wallet locked or uninitialized).')
       throw new MidnightWalletError(
         'ADDRESS_UNAVAILABLE',
-        '1AM extension authorized successfully, but no active Midnight address was returned. Please ensure your 1AM wallet is unlocked and has an active account initialized.'
+        '1AM extension authorized successfully, but no active Midnight address was returned. Please ensure your 1AM wallet is unlocked and has an active account selected in the extension.'
       )
     }
 

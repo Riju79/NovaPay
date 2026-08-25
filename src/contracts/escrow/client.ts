@@ -3,7 +3,7 @@
  */
 
 import { getRaw1AMProvider } from '@/lib/midnight-wallet/detect'
-import { getConnectedAPI, clearCachedConnectedApi } from '@/lib/midnight-wallet/utils'
+import { getConnectedAPI, clearCachedConnectedApi, execute1AMTransfer } from '@/lib/midnight-wallet/utils'
 import { EscrowStatus, EscrowDetails } from './types'
 import { API_URL } from '@/config'
 
@@ -62,16 +62,10 @@ export class EscrowContractClient {
       if (connectedApi && typeof connectedApi.makeTransfer === 'function') {
         try {
           console.log(`[EscrowClient] Attempting native wallet transfer for ${opName}...`)
-          const transferRes = await connectedApi.makeTransfer(
-            [
-              {
-                kind: 'unshielded',
-                type: '0x00',
-                value: BigInt(payload.amountBaseUnits || '1000000'),
-                recipient: payload.payeeAddress || payload.payerAddress || 'mn_addr_preview1_escrow',
-              },
-            ],
-            { payFees: true }
+          const transferRes = await execute1AMTransfer(
+            connectedApi,
+            payload.payeeAddress || payload.payerAddress || 'mn_addr_preview1_escrow',
+            BigInt(payload.amountBaseUnits || '1000000')
           )
           if (transferRes && transferRes.tx) {
             console.log(`[EscrowClient] 1AM makeTransfer submitted tx:`, transferRes.tx)

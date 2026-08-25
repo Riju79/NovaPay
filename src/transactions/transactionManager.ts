@@ -115,7 +115,7 @@ export class TransactionManager {
     this.notify()
   }
 
-  public setRejected(error = 'Transaction was rejected in wallet.') {
+  public setRejected(error = 'Transaction failed directly in wallet.') {
     this.state = {
       ...this.state,
       status: 'REJECTED',

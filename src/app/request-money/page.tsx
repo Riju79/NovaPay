@@ -4,10 +4,11 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
-import { API_URL } from '@/config'
+import { API_URL, getExplorerTxUrl } from '@/config'
 const signTransaction = async (xdr: string, _opts?: any) => {
   return { signedTxXdr: xdr }
 }
+import { getRaw1AMProvider, getConnectedAPI, execute1AMTransfer } from '@/lib/midnight-wallet'
 import { recurringInitialize, recurringCharge, xlmToStroops, NATIVE_TOKEN_TESTNET } from '@/lib/contract'
 import {
   Share2,
@@ -46,14 +47,14 @@ interface PaymentRequest {
   updated_at: string
 }
 
+import { useMidnightWallet } from '@/context/MidnightWalletContext'
+
 export default function RequestMoneyPage() {
   const router = useRouter()
   const user: any = null
   const token = null
-  const isConnected = false
-  const publicKey: string | null = null
-  const connect = () => {}
-  const isConnecting = false
+  const { wallet, isConnected, isConnecting, connect } = useMidnightWallet()
+  const publicKey = wallet?.address || null
   const isUserAuthenticated = true
 
   // Form states
@@ -113,23 +114,24 @@ export default function RequestMoneyPage() {
     if (publicKey) {
       fetchBalances(publicKey)
     }
+    fetchRequests()
   }, [publicKey])
-
-
 
   // Fetch requests list
   const fetchRequests = async () => {
-    if (!token) return
     setIsLoadingRequests(true)
     try {
-      const res = await fetch(`${API_URL}/api/payment-requests`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const url = publicKey
+        ? `${API_URL}/api/payment-requests?walletAddress=${encodeURIComponent(publicKey)}`
+        : `${API_URL}/api/payment-requests`
+      const res = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
       })
       const data = await res.json()
-      if (res.ok) {
+      if (res.ok && Array.isArray(data)) {
         setRequests(data)
       } else {
-        console.error('Error fetching requests:', data.error)
+        console.error('Error fetching requests:', data?.error)
       }
     } catch (err) {
       console.error('Network error fetching requests:', err)
@@ -157,7 +159,8 @@ export default function RequestMoneyPage() {
       return
     }
 
-    if (user && user.wallet_address === address) {
+    const currentWallet = publicKey || user?.wallet_address || ''
+    if (currentWallet && currentWallet.toLowerCase() === address.toLowerCase()) {
       setIsValidAddress(false)
       setAddressError('You cannot request money from your own wallet.')
       return
@@ -189,7 +192,9 @@ export default function RequestMoneyPage() {
           amount: parseFloat(amount),
           asset,
           purpose,
-          message: message || undefined
+          message: message || undefined,
+          requesterWallet: publicKey,
+          senderAddress: publicKey
         })
       })
 
@@ -267,37 +272,34 @@ export default function RequestMoneyPage() {
     setSuccessTxHash(null)
 
     try {
-      // Step 1: Prepare transaction (fetch unsigned XDR from server)
+      // Step 1: Detect 1AM Wallet Provider
       setPayStep(1)
-      const prepareRes = await fetch(`${API_URL}/api/payment-requests/${req.id}/pay`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({})
-      })
-
-      const prepareData = await prepareRes.json()
-      if (!prepareRes.ok) {
-        throw new Error(prepareData.error || 'Failed to prepare transaction.')
+      const raw1AM = getRaw1AMProvider()
+      if (!raw1AM) {
+        throw new Error('1AM Wallet extension not detected in your browser. Please ensure 1AM extension is installed.')
       }
 
-      const unsignedXdr = prepareData.xdr
+      const networkId = process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preview'
+      const connectedApi = await getConnectedAPI(raw1AM, networkId)
+      if (!connectedApi) {
+        throw new Error('Failed to establish session with 1AM Wallet. Please unlock your 1AM extension.')
+      }
 
-      // Step 2: Request 1AM Signature
+      const amountBaseUnits = BigInt(Math.round(req.amount * 1_000_000))
+
+      // Step 2: Trigger 1AM Wallet Authentication Popup & Signature
       setPayStep(2)
-      const signResult = await signTransaction(unsignedXdr, {
-        networkPassphrase: 'Midnight Network Preview'
-      })
+      console.log('[PAY REQUEST] Stage 1: Triggering 1AM Wallet authentication popup...')
+      const transferRes = await execute1AMTransfer(connectedApi, req.requester_wallet.trim(), amountBaseUnits)
+      const canonicalTxHash = transferRes?.tx || ''
 
-      if (typeof signResult === 'object' && (signResult as any).error) {
-        const errObj = (signResult as any).error
-        throw new Error(typeof errObj === 'string' ? errObj : errObj.message || 'User rejected request or signing failed')
+      if (!canonicalTxHash) {
+        throw new Error('No transaction hash returned from 1AM Wallet.')
       }
-      const signedXdr = typeof signResult === 'string' ? signResult : (signResult as any).signedTxXdr
 
-      // Step 3: Submit transaction to Midnight network
+      console.log('[PAY REQUEST] Stage 1 Complete. Canonical 1AM tx hash:', canonicalTxHash)
+
+      // Step 3: Record transaction and mark Payment Request COMPLETED on server
       setPayStep(3)
       const submitRes = await fetch(`${API_URL}/api/payment-requests/${req.id}/pay`, {
         method: 'PATCH',
@@ -305,7 +307,12 @@ export default function RequestMoneyPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ xdr: signedXdr })
+        body: JSON.stringify({
+          xdr: Buffer.from(JSON.stringify({ requester: req.requester_wallet, amount: req.amount, txHash: canonicalTxHash })).toString('base64'),
+          txHash: canonicalTxHash,
+          payerWallet: publicKey,
+          senderAddress: publicKey
+        })
       })
 
       const submitData = await submitRes.json()
@@ -313,40 +320,15 @@ export default function RequestMoneyPage() {
         throw new Error(submitData.error || 'Midnight transaction submission rejected.')
       }
 
-      // Success — run Recurring Billing contract calls for Services payments (non-fatal)
-      let usedContractTxHash = false
-      if (req.purpose === 'Services' && publicKey !== null) {
-        const initResult = await recurringInitialize({
-          callerPublicKey: publicKey,
-          payer: publicKey,
-          payee: req.requester_wallet,
-          tokenAddress: NATIVE_TOKEN_TESTNET,
-          limitStroops: xlmToStroops(req.amount),
-          intervalSeconds: 2592000,
-        })
-        if (!initResult.success) {
-          console.warn('Recurring billing setup failed:', initResult.error)
-        } else {
-          const chargeResult = await recurringCharge(publicKey, xlmToStroops(req.amount))
-          if (!chargeResult.success) {
-            console.warn('Contract charge failed:', chargeResult.error)
-          } else {
-            setSuccessTxHash(chargeResult.txHash)
-            usedContractTxHash = true
-          }
-        }
-      }
-      if (!usedContractTxHash) {
-        setSuccessTxHash(submitData.txHash)
-      }
-
-      setPayStep(4)
+      setSuccessTxHash(canonicalTxHash)
       fetchRequests()
     } catch (err: any) {
-      console.error(err)
-      setPayError(err.message || 'An unexpected error occurred during execution.')
+      console.error('Pay request error:', err)
+      setPayError(err.message || 'Payment failed.')
     } finally {
       setIsPaying(false)
+      setPayingRequest(null)
+      setPayStep(0)
     }
   }
 
@@ -687,7 +669,26 @@ export default function RequestMoneyPage() {
             </div>
 
             {/* Inbox List Container */}
-            {isLoadingRequests ? (
+            {!isConnected || !publicKey ? (
+              <div className="py-20 text-center border border-dashed border-black/10 rounded-3xl flex flex-col items-center justify-center gap-4 bg-black/[0.01] p-6">
+                <div className="w-12 h-12 rounded-full bg-black/5 flex items-center justify-center text-black/40">
+                  <Lock size={20} />
+                </div>
+                <div className="space-y-1 max-w-xs">
+                  <h4 className="font-bold text-sm text-black/80">Wallet Not Connected</h4>
+                  <p className="text-xs text-black/45">
+                    Connect your 1AM wallet to view your payment requests.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => connect()}
+                  className="px-5 py-2.5 bg-black text-white font-bold text-xs rounded-xl hover:bg-black/90 transition-all cursor-pointer shadow-md active:scale-98"
+                >
+                  Connect 1AM Wallet
+                </button>
+              </div>
+            ) : isLoadingRequests ? (
               <div className="py-20 flex flex-col items-center justify-center text-black/45 text-xs gap-2">
                 <Loader2 size={20} className="animate-spin text-black" />
                 <span>Loading request ledger...</span>
@@ -700,7 +701,8 @@ export default function RequestMoneyPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {filteredRequests.map((req) => {
-                  const isIncoming = req.recipient_wallet === user.wallet_address
+                  const currentWallet = publicKey || user?.wallet_address || ''
+                  const isIncoming = currentWallet ? req.recipient_wallet.toLowerCase() === currentWallet.toLowerCase() : false
                   const counterparty = isIncoming ? req.requester_wallet : req.recipient_wallet
 
                   return (
@@ -858,11 +860,11 @@ export default function RequestMoneyPage() {
                       {selectedReceipt.transaction_hash}
                     </span>
                     <a
-                      href={`https://indexer.preprod.midnight.network/tx/${selectedReceipt.transaction_hash}`}
+                      href={getExplorerTxUrl(selectedReceipt.transaction_hash)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="p-1 hover:bg-white/10 text-white/60 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0"
-                      title="View on Midnight Indexer"
+                      title="View on Midnight Explorer"
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
                     </a>
@@ -898,9 +900,19 @@ export default function RequestMoneyPage() {
                 </div>
 
                 <div className="space-y-1.5 max-w-xs">
-                  <h3 className="font-bold text-lg">Midnight Ledger Consensus</h3>
+                  <h3 className="font-bold text-lg">
+                    {payStep === 1
+                      ? 'Constructing Transaction'
+                      : payStep === 2
+                      ? 'Awaiting 1AM Wallet Signature'
+                      : payStep === 3
+                      ? 'Transaction Submitted'
+                      : 'Midnight Ledger Consensus'}
+                  </h3>
                   <p className="text-xs text-white/55 leading-normal">
-                    Fulfilling request of {payingRequest.amount} {payingRequest.asset}. Do not close this window.
+                    {payStep === 3
+                      ? 'Transaction submitted by wallet! Processing Midnight RPC submission.'
+                      : `Fulfilling request of ${payingRequest.amount} ${payingRequest.asset}. Do not close this window.`}
                   </p>
                 </div>
 
@@ -920,8 +932,8 @@ export default function RequestMoneyPage() {
                   </div>
                   <div className="flex items-center gap-2.5">
                     <span className={payStep >= 3 ? 'text-emerald-400' : ''}>{payStep > 3 ? '✔' : payStep === 3 ? '⚙' : '○'}</span>
-                    <span className={payStep === 3 ? 'text-white font-bold' : payStep > 3 ? 'text-white/80' : ''}>
-                      Submitting signed transaction envelope to Midnight network...
+                    <span className={payStep === 3 ? 'text-emerald-300 font-bold' : payStep > 3 ? 'text-white/80' : ''}>
+                      Transaction Submitted: Submitting transaction envelope to Midnight network...
                     </span>
                   </div>
                 </div>
@@ -950,7 +962,7 @@ export default function RequestMoneyPage() {
                       <div className="flex items-center gap-2 bg-white/[0.02] border border-white/5 rounded-xl px-3 py-1.5 w-full">
                         <span className="font-mono text-[10px] text-white/70 truncate flex-1 select-all">{successTxHash}</span>
                         <a
-                          href={`https://indexer.preprod.midnight.network/tx/${successTxHash}`}
+                          href={getExplorerTxUrl(successTxHash)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="p-1 hover:bg-white/10 text-white/60 hover:text-white rounded-lg transition-colors cursor-pointer"
@@ -983,7 +995,7 @@ export default function RequestMoneyPage() {
           <div className="bg-[#0F0F0F] border border-white/10 w-full max-w-md rounded-2xl p-6 shadow-2xl text-white">
             <div className="flex items-center gap-2.5 text-rose-400 mb-4">
               <XCircle className="w-6 h-6" />
-              <h3 className="text-base font-bold">Payment Rejected</h3>
+              <h3 className="text-base font-bold">Payment Failed</h3>
             </div>
 
             <p className="text-xs text-white/60 leading-relaxed font-semibold bg-white/[0.02] border border-white/5 rounded-xl p-4.5">

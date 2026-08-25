@@ -209,7 +209,7 @@ export function MidnightWalletProvider({ children }: { children: React.ReactNode
     }
   }, [wallet?.address, syncWalletState])
 
-  // Initial detection only (do NOT auto-connect on page reload)
+  // Auto-reconnect saved session on page load / hard refresh
   useEffect(() => {
     detectAllWallets().then((results) => {
       setDetection(results)
@@ -217,11 +217,21 @@ export function MidnightWalletProvider({ children }: { children: React.ReactNode
       console.warn('[MidnightWallet] Initial detection error:', err)
     })
 
-    // Clean up any legacy persistent session storage keys so refresh always starts clean
     if (typeof window !== 'undefined') {
-      localStorage.removeItem(STORAGE_SESSION_KEY)
-      localStorage.removeItem('novapay_custom_address')
-      localStorage.removeItem('novapay_midnight_wallet_session')
+      const savedProvider = localStorage.getItem(STORAGE_SESSION_KEY)
+      if (savedProvider === '1am') {
+        setIsConnecting(true)
+        connectWallet('1am').then((session) => {
+          if (session && session.connected) {
+            console.log('[MidnightWallet] Auto-reconnected saved 1AM session after page refresh:', session.address)
+            setWallet(session)
+          }
+        }).catch((err) => {
+          console.warn('[MidnightWallet] Auto-reconnect after refresh warning:', err)
+        }).finally(() => {
+          setIsConnecting(false)
+        })
+      }
     }
   }, [])
 
@@ -292,15 +302,23 @@ export function MidnightWalletProvider({ children }: { children: React.ReactNode
     const syncExtensionState = async () => {
       if (typeof window === 'undefined') return
       try {
-        const session = await connectWallet('1am')
-        setWallet((prev) => {
-          if (!prev || prev.address !== session.address || prev.shieldedAddress !== session.shieldedAddress) {
-            return session
-          }
-          return prev
-        })
+        const raw1AM = getRaw1AMProvider()
+        if (!raw1AM) return
+        const extracted = await extractMidnightAddresses(raw1AM, raw1AM)
+        if (extracted.address && (extracted.address !== wallet.address || extracted.shieldedAddress !== wallet.shieldedAddress)) {
+          setWallet((prev) => {
+            if (!prev) return null
+            return {
+              ...prev,
+              address: extracted.address,
+              shieldedAddress: extracted.shieldedAddress,
+              unshieldedAddress: extracted.unshieldedAddress,
+              connectedAt: Date.now(),
+            }
+          })
+        }
       } catch {
-        // Keep current state
+        // Keep current state if extension focus check fails
       }
     }
 

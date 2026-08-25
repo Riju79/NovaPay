@@ -36,17 +36,18 @@ export const createSubscriptionRecord = async (req: Request, res: Response) => {
 export const getSubscriptionRecords = async (req: Request, res: Response) => {
   try {
     const { walletAddress } = req.query
-    const whereClause = walletAddress
-      ? {
-          OR: [
-            { payer: String(walletAddress) },
-            { recipient: String(walletAddress) },
-          ],
-        }
-      : {}
+
+    if (!walletAddress || typeof walletAddress !== 'string' || !walletAddress.trim()) {
+      return res.json([])
+    }
 
     const records = await prisma.subscriptionRecord.findMany({
-      where: whereClause,
+      where: {
+        OR: [
+          { payer: String(walletAddress).trim() },
+          { recipient: String(walletAddress).trim() },
+        ],
+      },
       orderBy: { created_at: 'desc' },
     })
 

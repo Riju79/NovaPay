@@ -3,6 +3,7 @@ import {
   validateRecipient,
   createTransaction,
   submitTransaction,
+  confirmTransaction,
   getTransactionHistory,
   getWalletBalance
 } from '../controllers/send-money.controller'
@@ -13,6 +14,7 @@ const router = Router()
 router.post('/validate-recipient', validateRecipient)
 router.post('/create-transaction', createTransaction)
 router.post('/submit-transaction', submitTransaction)
+router.post('/confirm-transaction', confirmTransaction)
 router.get('/history', getTransactionHistory)
 router.get('/balance', getWalletBalance)
 

@@ -3,7 +3,7 @@
  */
 
 import { getRaw1AMProvider } from '@/lib/midnight-wallet/detect'
-import { getConnectedAPI, clearCachedConnectedApi } from '@/lib/midnight-wallet/utils'
+import { getConnectedAPI, clearCachedConnectedApi, execute1AMTransfer } from '@/lib/midnight-wallet/utils'
 import { SubscriptionStatus, FrequencyType } from './types'
 import { API_URL } from '@/config'
 
@@ -60,16 +60,10 @@ export class RecurringContractClient {
       if (connectedApi && typeof connectedApi.makeTransfer === 'function') {
         try {
           console.log(`[RecurringClient] Attempting native wallet transfer for ${opName}...`)
-          const transferRes = await connectedApi.makeTransfer(
-            [
-              {
-                kind: 'unshielded',
-                type: '0x00',
-                value: BigInt(payload.amountBaseUnits || '1000000'),
-                recipient: payload.recipientAddress || 'mn_addr_preview1_recurring',
-              },
-            ],
-            { payFees: true }
+          const transferRes = await execute1AMTransfer(
+            connectedApi,
+            payload.recipientAddress || 'mn_addr_preview1_recurring',
+            BigInt(payload.amountBaseUnits || '1000000')
           )
           if (transferRes && transferRes.tx) {
             console.log(`[RecurringClient] 1AM makeTransfer submitted tx:`, transferRes.tx)

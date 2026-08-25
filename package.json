@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "deploy-contracts": "node scripts/deploy-contracts.js"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-js": "^2.5.1",

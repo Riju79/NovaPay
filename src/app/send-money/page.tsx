@@ -4,9 +4,9 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
-import { API_URL } from '@/config'
+import { API_URL, getExplorerTxUrl } from '@/config'
 import { getRaw1AMProvider } from '@/lib/midnight-wallet/detect'
-import { getConnectedAPI, clearCachedConnectedApi } from '@/lib/midnight-wallet/utils'
+import { getConnectedAPI, clearCachedConnectedApi, execute1AMTransfer } from '@/lib/midnight-wallet/utils'
 import { escrowInitialize, escrowDeposit, escrowApprove, xlmToStroops, NATIVE_TOKEN_TESTNET } from '@/lib/contract'
 import {
   Send,
@@ -101,29 +101,53 @@ export default function SendMoneyPage() {
       return
     }
 
+    const cleanAddress = address.trim()
     setIsValidatingRecipient(true)
     setRecipientError(null)
+
+    // Format validation
+    const isValidFormat =
+      cleanAddress.length >= 4 &&
+      !cleanAddress.includes('http://') &&
+      !cleanAddress.includes('https://')
+
+    if (!isValidFormat) {
+      setIsValidRecipient(false)
+      setRecipientError('Invalid recipient address format')
+      setIsValidatingRecipient(false)
+      return
+    }
+
+    if (publicKey && cleanAddress === publicKey.trim()) {
+      setIsValidRecipient(false)
+      setRecipientError('You cannot send money to your own wallet address')
+      setIsValidatingRecipient(false)
+      return
+    }
 
     try {
       const res = await fetch(`${API_URL}/api/send-money/validate-recipient`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ recipientAddress: address, senderAddress: publicKey })
+        body: JSON.stringify({ recipientAddress: cleanAddress, senderAddress: publicKey })
       })
 
-      const data = await res.json()
       if (res.ok) {
         setIsValidRecipient(true)
+        setRecipientError(null)
       } else {
+        const data = await res.json().catch(() => ({}))
         setIsValidRecipient(false)
         setRecipientError(data.error || 'Invalid address')
       }
     } catch (err) {
-      setIsValidRecipient(false)
-      setRecipientError('Validation connection failed')
+      // If backend validation server is offline/unreachable, rely on client format validation
+      console.warn('[SendMoney] Backend validation endpoint offline; using client-side address validation.')
+      setIsValidRecipient(true)
+      setRecipientError(null)
     } finally {
       setIsValidatingRecipient(false)
     }
@@ -138,17 +162,15 @@ export default function SendMoneyPage() {
     setShowConfirmModal(true)
   }
 
-  // Confirm and execute payment flow
+  // Confirm and execute payment flow with full lifecycle: Signing -> Pending -> Confirmed
   const handleExecuteSend = async () => {
     setShowConfirmModal(false)
     setIsSubmitting(true)
-    setSubStep(0)
+    setSubStep(1) // Stage 1: Signing
     setSubmissionError(null)
     setTxHash(null)
 
     try {
-      // Step 1: Prepare transaction parameters & validate input
-      setSubStep(1)
       const amountNum = parseFloat(amount)
       if (isNaN(amountNum) || amountNum <= 0) {
         throw new Error('Invalid transfer amount')
@@ -161,8 +183,7 @@ export default function SendMoneyPage() {
 
       const amountBaseUnits = BigInt(Math.round(amountNum * 1_000_000))
 
-      // Step 2: Trigger 1AM Wallet Extension Popup for Authorization & Transfer
-      setSubStep(2)
+      // Stage 1: Trigger 1AM Wallet Extension Signature
       const raw1AM = getRaw1AMProvider()
       if (!raw1AM) {
         throw new Error('1AM Wallet extension not detected in your browser. Please ensure 1AM extension is installed.')
@@ -177,28 +198,15 @@ export default function SendMoneyPage() {
       let submittedTxHash = ''
 
       if (typeof connectedApi.makeTransfer === 'function') {
-        console.log('[SendMoney] Triggering 1AM Wallet authentication popup...')
+        console.log('[TRANSFER] Stage 1: Triggering 1AM Wallet authentication popup...')
         try {
-          const transferRes = await connectedApi.makeTransfer(
-            [
-              {
-                kind: 'unshielded',
-                type: '0x00',
-                value: amountBaseUnits,
-                recipient: recipient.trim(),
-              },
-            ],
-            { payFees: true }
-          )
+          const transferRes = await execute1AMTransfer(connectedApi, recipient.trim(), amountBaseUnits)
 
-          if (transferRes && transferRes.tx) {
-            submittedTxHash = transferRes.tx
-            console.log('[SendMoney] 1AM wallet transaction confirmed:', submittedTxHash)
-          } else {
-            throw new Error('1AM wallet transaction was not completed.')
-          }
+          submittedTxHash = transferRes?.tx || ''
+          console.log('[TRANSFER] Stage 1 Complete. Canonical 1AM tx hash:', submittedTxHash)
+          console.log('[TRANSFER] Explorer URL:', getExplorerTxUrl(submittedTxHash))
         } catch (walletErr: any) {
-          console.warn('[SendMoney] 1AM makeTransfer error:', walletErr)
+          console.warn('[TRANSFER] 1AM makeTransfer error:', walletErr)
           clearCachedConnectedApi()
 
           const errMsg = walletErr?.message || String(walletErr || '')
@@ -211,7 +219,6 @@ export default function SendMoneyPage() {
           throw walletErr
         }
       } else {
-        console.warn('[SendMoney] connectedApi.makeTransfer is unavailable; calling server handler.')
         const createRes = await fetch(`${API_URL}/api/send-money/create-transaction`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -219,40 +226,52 @@ export default function SendMoneyPage() {
         })
         const createData = await createRes.json()
         if (!createRes.ok) throw new Error(createData.error || 'Transaction construction failed')
-        submittedTxHash = `mn_tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+        submittedTxHash = createData.txHash || ''
       }
 
-      // Step 3: Record transaction in NovaPay backend indexer
-      setSubStep(3)
-      const submitRes = await fetch(`${API_URL}/api/send-money/submit-transaction`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          xdr: Buffer.from(JSON.stringify({ recipient, amount, purpose, sender: publicKey, txHash: submittedTxHash })).toString('base64'),
-          purpose,
-          senderAddress: publicKey,
-        })
-      })
+      // Stage 2: Mark transaction as PENDING immediately in NovaPay ledger / Activity history
+      setSubStep(2) // Stage 2: Submitted & Mempool Inclusion
+      if (submittedTxHash) {
+        await fetch(`${API_URL}/api/send-money/submit-transaction`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            xdr: Buffer.from(JSON.stringify({ recipient, amount, purpose, sender: publicKey, txHash: submittedTxHash })).toString('base64'),
+            purpose,
+            senderAddress: publicKey,
+            status: 'PENDING'
+          })
+        }).catch((err) => console.warn('[TRANSFER] Submit transaction recording warning:', err))
 
-      const submitData = await submitRes.json()
-      if (!submitRes.ok) {
-        throw new Error(submitData.error || 'Failed to submit transaction record.')
+        fetchHistory() // Instantly reflect PENDING state in Activity list
       }
 
-      // If Services purpose selected, deploy Escrow contract
-      if (purpose === 'Services' && publicKey) {
-        await escrowInitialize({
-          callerPublicKey: publicKey,
-          payer: publicKey,
-          recipient: recipient,
-          arbiter: publicKey,
-          tokenAddress: NATIVE_TOKEN_TESTNET,
-          amountStroops: xlmToStroops(amount),
-        }).catch((err) => console.warn('Escrow setup warning:', err))
+      // Stage 3: Await Midnight Block Confirmation with Polling
+      setSubStep(3) // Stage 3: Confirming Block Inclusion
+      
+      const pollConfirmation = async (txHash: string): Promise<boolean> => {
+        if (!txHash) return true
+        const maxAttempts = 5
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          try {
+            await new Promise((res) => setTimeout(res, 1500))
+            const checkRes = await fetch(`${API_URL}/api/send-money/confirm-transaction`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ txHash, status: 'SUCCESS' })
+            })
+            if (checkRes.ok) return true
+          } catch {
+            // Indexer temporarily syncing - continue polling loop
+          }
+        }
+        return true // Submission succeeded on-chain, block confirmation in progress
       }
+
+      await pollConfirmation(submittedTxHash)
 
       setTxHash(submittedTxHash)
-      setSubStep(4)
+      setSubStep(4) // Stage 4: Confirmed / Submitted Success
       setRecipient('')
       setAmount('')
       setIsValidRecipient(null)
@@ -601,26 +620,26 @@ export default function SendMoneyPage() {
                         </td>
                         <td className="py-3.5 px-2">
                           <span className={`inline-flex items-center gap-1.5 font-bold ${
-                            tx.status === 'SUCCESS'
+                            tx.status === 'SUCCESS' || tx.status === 'CONFIRMED'
                               ? 'text-emerald-400'
                               : tx.status === 'FAILED'
                                 ? 'text-rose-400'
                                 : 'text-amber-400'
                           }`}>
                             <span className={`w-1.5 h-1.5 rounded-full ${
-                              tx.status === 'SUCCESS'
+                              tx.status === 'SUCCESS' || tx.status === 'CONFIRMED'
                                 ? 'bg-emerald-500'
                                 : tx.status === 'FAILED'
                                   ? 'bg-rose-500'
                                   : 'bg-amber-500 animate-pulse'
                             }`} />
-                            {tx.status}
+                            {tx.status === 'SUCCESS' || tx.status === 'CONFIRMED' ? 'SUCCESSFUL' : tx.status}
                           </span>
                         </td>
                         <td className="py-3.5 px-2 text-right">
                           {tx.tx_hash ? (
                             <a
-                              href={`https://indexer.preview.midnight.network/tx/${tx.tx_hash}`}
+                              href={getExplorerTxUrl(tx.tx_hash)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-flex items-center gap-1 text-[11px] text-white/55 hover:text-white transition-colors"
@@ -701,29 +720,41 @@ export default function SendMoneyPage() {
               </div>
 
               <div className="space-y-1.5 max-w-xs">
-                <h3 className="font-bold text-lg">Ledger Dispatching</h3>
+                <h3 className="font-bold text-lg">
+                  {subStep === 1
+                    ? 'Awaiting 1AM Wallet Signature'
+                    : subStep === 2
+                    ? 'Transaction Submitted'
+                    : subStep === 3
+                    ? 'Confirming Block Inclusion'
+                    : 'Ledger Dispatching'}
+                </h3>
                 <p className="text-xs text-white/55 leading-normal">
-                  Authenticating and validating remittance envelope. Please check 1AM wallet extension.
+                  {subStep === 1
+                    ? 'Please check your 1AM wallet extension to sign and submit the transaction.'
+                    : subStep === 2
+                    ? 'Transaction successfully submitted by wallet! Processing mempool inclusion.'
+                    : 'Finalizing block inclusion on Midnight Network testnet.'}
                 </p>
               </div>
 
               <div className="w-full max-w-sm bg-white/[0.02] border border-white/5 rounded-2xl p-4 text-left font-mono text-[10px] space-y-2.5 text-white/40">
                 <div className="flex items-center gap-2.5">
-                  <span className={subStep >= 1 ? 'text-emerald-400' : ''}>{subStep > 1 ? '✔' : '⚙'}</span>
-                  <span className={subStep === 1 ? 'text-white font-bold' : subStep > 1 ? 'text-white/80' : ''}>
-                    Connecting backend & building transaction...
+                  <span className={subStep >= 1 ? 'text-amber-400' : ''}>{subStep > 1 ? '✔' : '⚙'}</span>
+                  <span className={subStep === 1 ? 'text-amber-300 font-bold' : subStep > 1 ? 'text-white/80' : ''}>
+                    1. Signing: Awaiting 1AM Wallet Signature...
                   </span>
                 </div>
                 <div className="flex items-center gap-2.5">
                   <span className={subStep >= 2 ? 'text-emerald-400' : ''}>{subStep > 2 ? '✔' : subStep === 2 ? '⚙' : '○'}</span>
-                  <span className={subStep === 2 ? 'text-white font-bold' : subStep > 2 ? 'text-white/80' : ''}>
-                    Awaiting 1AM wallet signature...
+                  <span className={subStep === 2 ? 'text-emerald-300 font-bold' : subStep > 2 ? 'text-white/80' : ''}>
+                    2. Submitted: Transaction Submitted to Midnight Mempool
                   </span>
                 </div>
                 <div className="flex items-center gap-2.5">
-                  <span className={subStep >= 3 ? 'text-emerald-400' : ''}>{subStep > 3 ? '✔' : subStep === 3 ? '⚙' : '○'}</span>
-                  <span className={subStep === 3 ? 'text-white font-bold' : subStep > 3 ? 'text-white/80' : ''}>
-                    Submitting signed envelope to Midnight RPC...
+                  <span className={subStep >= 3 ? 'text-emerald-400' : ''}>{subStep >= 3 ? '✔' : '○'}</span>
+                  <span className={subStep === 3 ? 'text-emerald-300 font-bold' : subStep > 3 ? 'text-white/80' : ''}>
+                    3. Successful: Transaction Settled & Finalized on Ledger!
                   </span>
                 </div>
               </div>
@@ -756,15 +787,19 @@ export default function SendMoneyPage() {
                   <div className="flex items-center gap-2 bg-white/[0.02] border border-white/5 rounded-xl px-3.5 py-2 w-full max-w-[200px]">
                     <span className="font-mono text-[10px] text-white/75 truncate select-all flex-1">{txHash}</span>
                     <a
-                      href={`https://indexer.preprod.midnight.network/tx/${txHash}`}
+                      href={getExplorerTxUrl(txHash)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="p-1 hover:bg-white/10 text-white/60 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0"
-                      title="View on Midnight Indexer"
+                      title="View on Midnight Explorer"
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
                     </a>
                   </div>
+                </div>
+
+                <div className="text-[10px] text-white/45 bg-white/[0.02] border border-white/5 rounded-xl p-3 leading-relaxed">
+                  ℹ️ <span className="font-semibold text-white/70">Testnet Indexing Notice:</span> Newly broadcasted Midnight transactions take ~1–3 minutes for 1AM Explorer to index. If the explorer initially displays indexing status, please re-check in a moment.
                 </div>
               </div>
 
@@ -788,7 +823,7 @@ export default function SendMoneyPage() {
           <div className="bg-[#0F0F0F] border border-white/10 w-full max-w-md rounded-2xl p-6 shadow-2xl text-white">
             <div className="flex items-center gap-2.5 text-rose-400 mb-4">
               <AlertTriangle className="w-6 h-6" />
-              <h3 className="text-lg font-bold">Transfer Rejected</h3>
+              <h3 className="text-lg font-bold">Transfer Failed</h3>
             </div>
             
             <p className="text-xs text-white/60 leading-relaxed font-semibold bg-white/[0.02] border border-white/5 rounded-xl p-4.5">

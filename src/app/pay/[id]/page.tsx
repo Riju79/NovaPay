@@ -4,7 +4,7 @@ import React, { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
-import { API_URL } from '@/config'
+import { API_URL, getExplorerTxUrl } from '@/config'
 const signTransaction = async (xdr: string, _opts?: any) => {
   return { signedTxXdr: xdr }
 }
@@ -406,9 +406,19 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
               </div>
 
               <div className="space-y-1.5 max-w-xs">
-                <h3 className="font-bold text-lg">Processing Payment</h3>
+                <h3 className="font-bold text-lg">
+                  {payStep === 1
+                    ? 'Constructing Transaction'
+                    : payStep === 2
+                    ? 'Awaiting 1AM Wallet Signature'
+                    : payStep === 3
+                    ? 'Transaction Submitted'
+                    : 'Processing Payment'}
+                </h3>
                 <p className="text-xs text-white/55 leading-normal">
-                  Preparing secure transaction envelope. Please approve 1AM wallet confirmation popup.
+                  {payStep === 3
+                    ? 'Transaction submitted by wallet! Submitting to Midnight RPC.'
+                    : 'Preparing secure transaction envelope. Please approve 1AM wallet confirmation popup.'}
                 </p>
               </div>
 
@@ -427,8 +437,8 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
                 </div>
                 <div className="flex items-center gap-2.5">
                   <span className={payStep >= 3 ? 'text-emerald-400' : ''}>{payStep > 3 ? '✔' : payStep === 3 ? '⚙' : '○'}</span>
-                  <span className={payStep === 3 ? 'text-white font-bold' : payStep > 3 ? 'text-white/80' : ''}>
-                    Submitting transaction to Midnight RPC...
+                  <span className={payStep === 3 ? 'text-emerald-300 font-bold' : payStep > 3 ? 'text-white/80' : ''}>
+                    Transaction Submitted: Submitting to Midnight RPC...
                   </span>
                 </div>
               </div>
@@ -463,7 +473,7 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
                   <div className="flex items-center gap-2 bg-white/[0.02] border border-white/5 rounded-lg px-2 py-1 max-w-[160px]">
                     <span className="font-mono text-[9px] text-white/75 truncate select-all">{txHash}</span>
                     <a
-                      href={`https://indexer.preprod.midnight.network/tx/${txHash}`}
+                      href={getExplorerTxUrl(txHash)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-white/60 hover:text-white"
@@ -494,7 +504,7 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
           <div className="bg-[#0F0F0F] border border-white/10 w-full max-w-md rounded-2xl p-6 shadow-2xl text-white">
             <div className="flex items-center gap-2.5 text-rose-400 mb-4">
               <AlertTriangle className="w-6 h-6" />
-              <h3 className="text-lg font-bold">Payment Rejected</h3>
+              <h3 className="text-lg font-bold">Payment Failed</h3>
             </div>
 
             <p className="text-xs text-white/60 leading-relaxed font-semibold bg-white/[0.02] border border-white/5 rounded-xl p-4.5">

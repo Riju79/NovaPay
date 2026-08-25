@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
-import { API_URL } from '@/config'
+import { API_URL, getExplorerTxUrl } from '@/config'
 import {
   Clock,
   Search,
@@ -77,10 +77,18 @@ export default function ActivityPage() {
 
   // Fetch data
   const fetchData = async (showSpinner = true) => {
+    if (!publicKey) {
+      setTransactions([])
+      setNotifications([])
+      setIsLoading(false)
+      setIsRefreshing(false)
+      return
+    }
+
     if (showSpinner) setIsLoading(true)
     setError(null)
     try {
-      const addressParam = publicKey ? `?walletAddress=${encodeURIComponent(publicKey)}` : ''
+      const addressParam = `?walletAddress=${encodeURIComponent(publicKey)}`
       const [txRes, notifRes] = await Promise.all([
         fetch(`${API_URL}/api/send-money/history${addressParam}`),
         fetch(`${API_URL}/api/notifications${addressParam}`)
@@ -520,9 +528,17 @@ export default function ActivityPage() {
               <h3 className="text-white font-bold text-sm">Failed to Load Activity</h3>
               <p className="text-white/40 text-xs mt-1 max-w-sm mx-auto leading-relaxed">{error}</p>
             </div>
+          ) : !publicKey ? (
+            <div className="py-20 text-center space-y-3">
+              <AlertCircle size={32} className="text-amber-400/80 mx-auto" />
+              <h3 className="text-white font-bold text-base font-sans">No Wallet Connected</h3>
+              <p className="text-white/45 text-xs max-w-sm mx-auto font-medium font-sans">
+                Please connect your Midnight wallet using the Connect Wallet button to view your transaction history and system alerts.
+              </p>
+            </div>
           ) : filteredActivities.length === 0 ? (
             <div className="py-20 text-center text-white/45 text-xs font-semibold">
-              No matching activity records found. Try modifying your search filters.
+              No matching activity records found for your wallet address.
             </div>
           ) : (
             <div className="space-y-4">
@@ -553,13 +569,13 @@ export default function ActivityPage() {
                               {isSender ? 'Sent Remittance' : 'Received Funds'}
                             </span>
                             <span className={`px-2 py-0.5 rounded-[6px] text-[9px] font-black uppercase tracking-wide ${
-                              tx.status === 'SUCCESS'
+                              tx.status === 'SUCCESS' || tx.status === 'CONFIRMED'
                                 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/10'
                                 : tx.status === 'FAILED'
                                   ? 'bg-rose-500/10 text-rose-400 border border-rose-500/10'
                                   : 'bg-amber-500/10 text-amber-400 border border-amber-500/10'
                             }`}>
-                              {tx.status}
+                              {tx.status === 'SUCCESS' || tx.status === 'CONFIRMED' ? 'SUCCESSFUL' : tx.status}
                             </span>
                           </div>
                           <p className="text-[11px] text-white/45 font-medium leading-relaxed font-mono">
@@ -705,7 +721,7 @@ export default function ActivityPage() {
                     ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                     : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
                 }`}>
-                  {selectedTx.status === 'SUCCESS' ? 'Settled on Testnet' : 'Failed / Rejected'}
+                  {selectedTx.status === 'SUCCESS' ? 'Settled on Testnet' : 'Failed'}
                 </span>
               </div>
 
@@ -749,37 +765,41 @@ export default function ActivityPage() {
                   </span>
                 </div>
 
-                {selectedTx.tx_hash && (
-                  <div className="flex flex-col gap-2 border-t border-white/5 pt-3">
-                    <span className="text-white/40">Midnight Transaction Hash</span>
-                    <div className="flex items-center gap-2 bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2 w-full">
-                      <span className="font-mono text-[9px] text-white/75 truncate select-all flex-1">
-                        {selectedTx.tx_hash}
-                      </span>
-                      <button
-                        onClick={() => handleCopy(selectedTx.tx_hash || '')}
-                        className="p-1 hover:bg-white/15 text-white/45 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0"
-                        title="Copy Hash"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                      </button>
-                      <a
-                        href={`https://indexer.preprod.midnight.network/tx/${selectedTx.tx_hash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-1 hover:bg-white/15 text-white/45 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0"
-                        title="Explore Ledger"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
+                {selectedTx.tx_hash && (() => {
+                  const raw = selectedTx.tx_hash.trim()
+                  const formatted = raw.startsWith('mn_') ? raw : raw.replace(/^0x/i, '')
+                  return (
+                    <div className="flex flex-col gap-2 border-t border-white/5 pt-3">
+                      <span className="text-white/40">Midnight Transaction Hash</span>
+                      <div className="flex items-center gap-2 bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2 w-full">
+                        <span className="font-mono text-[9px] text-white/75 truncate select-all flex-1">
+                          {formatted}
+                        </span>
+                        <button
+                          onClick={() => handleCopy(formatted)}
+                          className="p-1 hover:bg-white/15 text-white/45 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0"
+                          title="Copy Hash"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                        <a
+                          href={getExplorerTxUrl(formatted)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1 hover:bg-white/15 text-white/45 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0"
+                          title="Explore Ledger"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
+                      {copiedText && (copiedText === selectedTx.tx_hash || copiedText === formatted) && (
+                        <span className="text-[9px] text-emerald-400 font-bold self-end pr-1 animate-pulse">
+                          ✓ Copied to clipboard
+                        </span>
+                      )}
                     </div>
-                    {copiedText === selectedTx.tx_hash && (
-                      <span className="text-[9px] text-emerald-400 font-bold self-end pr-1 animate-pulse">
-                        ✓ Copied to clipboard
-                      </span>
-                    )}
-                  </div>
-                )}
+                  )
+                })()}
               </div>
 
               {/* Close Button */}
