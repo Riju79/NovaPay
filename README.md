@@ -1,22 +1,19 @@
 <div align="center">
 
+![NOVAPAY Banner](./public/novapay-banner.svg)
+
+<br/>
+
 [![Built On](https://img.shields.io/badge/BUILT%20ON-MIDNIGHT%20NETWORK-6366f1?style=for-the-badge)](https://preview.midnight.network)
 [![Network](https://img.shields.io/badge/NETWORK-PREVIEW%20TESTNET-10b981?style=for-the-badge)](https://preview.midnight.network)
 [![Frontend](https://img.shields.io/badge/FRONTEND-NEXT.JS%2016-000000?style=for-the-badge&logo=nextdotjs)](https://nextjs.org)
-<br/>
 [![Smart Contracts](https://img.shields.io/badge/SMART%20CONTRACTS-COMPACT%20ZK%20CIRCUITS-8b5cf6?style=for-the-badge)](https://midnight.network)
+<br/>
 [![Wallet](https://img.shields.io/badge/WALLET-1AM%20WALLET-f59e0b?style=for-the-badge)](https://explorer.1am.xyz)
 [![GitHub](https://img.shields.io/badge/GITHUB-RIJU79%2FNOVAPAY-24292e?style=for-the-badge&logo=github)](https://github.com/Riju79/NovaPay)
 [![License](https://img.shields.io/badge/LICENSE-MIT-green?style=for-the-badge)](LICENSE)
 
-```text
-███╗   ██╗██╗  ██╗██╗   ██╗██████╗  █████╗ ██╗   ██╗
-████╗  ██║██║  ██║██║   ██║██╔══██╗██╔══██╗╚██╗ ██╔╝
-██╔██╗ ██║██║  ██║██║   ██║██████╔╝███████║ ╚████╔╝ 
-██║╚██╗██║██║  ██║╚██╗ ██╔╝██╔═══╝ ██╔══██║  ╚██╔╝  
-██║ ╚████║╚█████╔╝ ╚████╔╝ ██║     ██║  ██║   ██║   
-╚═╝  ╚═══╝ ╚════╝   ╚═══╝  ╚═╝     ╚═╝  ╚═╝   ╚═╝   
-```
+<br/>
 
 ### 💸 Decentralized Zero-Knowledge Cross-Border Remittance Protocol on Midnight
 
@@ -318,6 +315,7 @@ novapay/
 │   └── recurring_billing/         # Recurring Billing Compact Contract
 │       └── managed/contract/      # Compiled JS/TS Artifacts
 ├── public/
+│   ├── novapay-banner.svg         # Vibrant SVG Vector Header Banner
 │   ├── screenshots/               # Verified UI Screenshots
 │   └── icon.svg
 ├── scripts/
