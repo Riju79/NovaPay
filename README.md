@@ -5,6 +5,7 @@
   <br/>
   <a href="https://midnight.network"><img src="https://img.shields.io/badge/SMART%20CONTRACTS-COMPACT%20ZK%20CIRCUITS-8b5cf6?style=flat-square" alt="Smart Contracts"/></a>
   <a href="https://explorer.1am.xyz"><img src="https://img.shields.io/badge/WALLET-1AM%20WALLET-f59e0b?style=flat-square" alt="Wallet"/></a>
+  <a href="https://youtu.be/9cOaJHHv664?si=IWxBJ0XOHOv9-C6v"><img src="https://img.shields.io/badge/DEMO%20VIDEO-YOUTUBE-red?style=flat-square&logo=youtube" alt="Demo Video"/></a>
   <br/>
   <a href="https://github.com/Riju79/NovaPay"><img src="https://img.shields.io/badge/GITHUB-RIJU79%2FNOVAPAY-24292e?style=flat-square&logo=github" alt="GitHub"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/LICENSE-MIT-green?style=flat-square" alt="License"/></a>
@@ -27,6 +28,7 @@
 
 <p align="center">
   <a href="https://novapay-steel.vercel.app">🌐 Live App</a> ·
+  <a href="https://youtu.be/9cOaJHHv664?si=IWxBJ0XOHOv9-C6v">🎬 Demo Video</a> ·
   <a href="#-what-is-novapay">📚 Documentation</a> ·
   <a href="https://github.com/Riju79/NovaPay">🐙 GitHub Repo</a> ·
   <a href="https://explorer.1am.xyz">🔍 1AM Explorer</a> ·
@@ -40,6 +42,15 @@
 **NovaPay** is a high-fidelity, privacy-preserving decentralized finance platform designed for global cross-border remittances, P2P invoicing, conditional escrow agreements, and pre-authorized recurring merchant billing.
 
 By leveraging the **Midnight Blockchain** and **Compact Zero-Knowledge (ZK) Circuits**, NovaPay eliminates traditional banking overhead, high cross-border wire fees, and transaction latency while keeping commercial payment metadata strictly confidential.
+
+---
+
+## 🎬 Product Demo Video
+
+[![NovaPay Demo Video](https://img.youtube.com/vi/9cOaJHHv664/hqdefault.jpg)](https://youtu.be/9cOaJHHv664?si=IWxBJ0XOHOv9-C6v)
+
+> 📺 **Watch the full product walkthrough on YouTube**: [https://youtu.be/9cOaJHHv664](https://youtu.be/9cOaJHHv664?si=IWxBJ0XOHOv9-C6v)  
+> *See how NovaPay powers instant P2P remittances, zero-knowledge invoicing, trustless escrow agreements, and pre-authorized recurring billing on the Midnight Network.*
 
 ### The Problem
 Traditional international payment rails (SWIFT, correspondent banking networks) are slow (3–5 business days), expensive (3%–7% transfer fees), and completely expose financial transaction histories to third-party tracking.
