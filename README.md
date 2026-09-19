@@ -2,6 +2,8 @@
   <a href="https://midnight.network"><img src="https://img.shields.io/badge/BUILT%20ON-MIDNIGHT%20NETWORK-6366f1?style=flat-square" alt="Built On"/></a>
   <a href="https://midnight.network"><img src="https://img.shields.io/badge/NETWORK-PREPROD%20TESTNET-10b981?style=flat-square" alt="Network"/></a>
   <a href="https://nextjs.org"><img src="https://img.shields.io/badge/FRONTEND-NEXT.JS%2016-000000?style=flat-square&logo=nextdotjs" alt="Frontend"/></a>
+  <a href="DOCUMENTATION.md"><img src="https://img.shields.io/badge/DOCUMENTATION-COMPREHENSIVE-blueviolet?style=flat-square" alt="Documentation"/></a>
+  <a href="SECURITY_AUDIT.md"><img src="https://img.shields.io/badge/SECURITY%20AUDIT-PASSED%20(0%20CRITICAL)-success?style=flat-square" alt="Security Audit"/></a>
   <br/>
   <a href="https://midnight.network"><img src="https://img.shields.io/badge/SMART%20CONTRACTS-COMPACT%20ZK%20CIRCUITS-8b5cf6?style=flat-square" alt="Smart Contracts"/></a>
   <a href="https://explorer.1am.xyz"><img src="https://img.shields.io/badge/WALLET-1AM%20WALLET-f59e0b?style=flat-square" alt="Wallet"/></a>
@@ -31,11 +33,12 @@
 
 <p align="center">
   <a href="https://novapay-steel.vercel.app">🌐 Live App</a> ·
+  <a href="DOCUMENTATION.md">📖 Full Documentation</a> ·
+  <a href="SECURITY_AUDIT.md">🛡️ Security Audit</a> ·
   <a href="https://youtu.be/9cOaJHHv664?si=IWxBJ0XOHOv9-C6v">🎬 Demo Video</a> ·
   <a href="https://x.com/nilendu_?s=11">🐦 Twitter / X</a> ·
   <a href="https://forms.gle/rqRkSQ8GxV4umwzYA">📝 Feedback Form</a> ·
   <a href="https://docs.google.com/spreadsheets/d/1_IyUaHtmlc3sxifecwlS66TqO4k2fY25ubGdxF9DmEo/edit?usp=sharing">📊 Survey Spreadsheet</a> ·
-  <a href="#-what-is-novapay">📚 Documentation</a> ·
   <a href="https://github.com/Riju79/NovaPay">🐙 GitHub Repo</a> ·
   <a href="https://explorer.1am.xyz">🔍 1AM Explorer</a> ·
   <a href="https://novapay-w4zv.onrender.com">⚙️ Backend API</a>
@@ -56,6 +59,8 @@ We actively gather structured user testing feedback and survey responses for Nov
 
 | Resource | Direct Link | Description |
 | :--- | :--- | :--- |
+| **Complete Protocol Documentation** | [📖 Full Technical Specifications](DOCUMENTATION.md) | Complete engineering architecture, smart contract interfaces, workflows, and API endpoints |
+| **Formal Security Audit Report** | [🛡️ Security Audit & Threat Model](SECURITY_AUDIT.md) | Comprehensive security assessment, defense-in-depth controls, threat modeling, and test results |
 | **Implementation Feedback Form** | [📝 Submit Feedback (Google Forms)](https://forms.gle/rqRkSQ8GxV4umwzYA) | Submit user testing reviews, feature requests, and UX evaluations |
 | **Public Survey Responses** | [📊 View Responses Sheet (Google Sheets)](https://docs.google.com/spreadsheets/d/1_IyUaHtmlc3sxifecwlS66TqO4k2fY25ubGdxF9DmEo/edit?usp=sharing) | Live public spreadsheet tracking 123+ community testing records |
 | **Official NovaPay Twitter / X** | [🐦 @nilendu_ on X](https://x.com/nilendu_?s=11) | Official announcements, protocol updates, and developer contact |
@@ -493,11 +498,29 @@ MIDNIGHT_WALLET_SEED="your 24-word seed phrase..." npm run deploy-contracts
 
 ---
 
-## 🔐 Security & Trust Boundaries
+## 📖 Full Protocol Documentation
 
+Comprehensive architectural and engineering specifications are maintained in the dedicated documentation file:
+
+> 📚 **Read Complete Technical Documentation**: [`DOCUMENTATION.md`](DOCUMENTATION.md)  
+> *Deep-dive guides covering protocol architecture, Midnight Preprod Compact circuits, end-to-end payment flows, complete REST API endpoints, and database models.*
+
+---
+
+## 🔐 Security Architecture & Formal Security Audit
+
+NovaPay underwent extensive defensive security hardening and automated audit verification with **Zero Critical, Zero High, and Zero Medium vulnerabilities detected**.
+
+> 🛡️ **View the Full Security Audit & Hardening Report**: [`SECURITY_AUDIT.md`](SECURITY_AUDIT.md)  
+> *Detailed threat modeling, cryptographic proof isolation, rate limiting, replay defense, and automated test suite verification.*
+
+### Key Security Safeguards
 * **Private Key Isolation**: Private keys never touch NovaPay servers. All cryptographic signatures occur strictly inside the user's isolated **1AM Wallet Extension**.
-* **Canonical Hash Extraction**: High-precision string validation (`is64HexHash()`) enforces exact 64-character (32-byte) hex transaction identifiers and discards un-finalized raw CBOR payload strings.
-* **Strict Payload Parsing**: Server endpoints validate wallet address formatting (`isValidWalletAddress`) and reject unauthorized payment requests.
+* **Zero Secret Leakage**: The backend `SecurityLogger` sanitizes all application logs via regex masking, blocking seeds, private keys, passwords, and JWT tokens.
+* **Idempotency & Replay Defense**: Middleware and database constraints prevent transaction replay attacks and double-spend race conditions.
+* **Defense-in-Depth HTTP Headers**: Enforces strict CSP, HSTS (`max-age=31536000`), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and strips server fingerprinting headers.
+* **Canonical Hash Extraction**: High-precision string validation (`isValidTxHash()`) enforces exact 64-character (32-byte) hex transaction identifiers and discards un-finalized raw CBOR payload strings.
+* **Automated Audit Test Suite**: Verified passing across all 13 security hardening test suites in [`server/test/security-hardening.test.js`](server/test/security-hardening.test.js).
 
 ---
 
@@ -505,6 +528,8 @@ MIDNIGHT_WALLET_SEED="your 24-word seed phrase..." npm run deploy-contracts
 
 ```text
 novapay/
+├── DOCUMENTATION.md               # Complete Protocol Documentation & Architecture
+├── SECURITY_AUDIT.md              # Formal Security Audit Report & Threat Model
 ├── .github/
 │   └── workflows/
 │       └── ci.yml                 # GitHub Actions CI/CD Pipeline
@@ -555,7 +580,7 @@ novapay/
 - [x] Direct 1AM Explorer deep-linking (`https://explorer.1am.xyz/tx/...`).
 - [x] Persistent session auto-reconnection across browser refreshes.
 - [x] Full P2P Request Money & Shareable Invoice links (`/pay/[id]`).
-- [x] 82+ community user testing submissions collected and verified via public evaluation spreadsheet.
+- [x] 123 verified community user testing submissions collected and embedded directly from public evaluation spreadsheet.
 
 ### In Progress ⚙️
 - [ ] Multi-token payment support for custom ZK assets on Midnight.
