@@ -6,14 +6,18 @@ import {
   declinePaymentRequest,
   payPaymentRequest
 } from '../controllers/payment-request.controller'
+import { authenticateToken } from '../middleware/auth'
+import { idempotencyMiddleware } from '../middleware/idempotency'
 
 const router = Router()
 
-// All routes are protected by authenticateToken middleware in index.ts
-router.post('/', createPaymentRequest)
-router.get('/', getPaymentRequests)
-router.get('/:id', getPaymentRequestById)
-router.patch('/:id/pay', payPaymentRequest)
-router.patch('/:id/decline', declinePaymentRequest)
+// All payment-request endpoints require authenticated session
+router.use(authenticateToken as any)
+
+router.post('/', idempotencyMiddleware as any, createPaymentRequest as any)
+router.get('/', getPaymentRequests as any)
+router.get('/:id', getPaymentRequestById as any)
+router.patch('/:id/pay', idempotencyMiddleware as any, payPaymentRequest as any)
+router.patch('/:id/decline', declinePaymentRequest as any)
 
 export default router

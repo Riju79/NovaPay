@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import { AuthRequest } from '../middleware/auth'
 import prisma from '../config/db'
+import { toDecimal, isPositiveAmount } from '../utils/money'
 
 const isValidWalletAddress = (address: string): boolean => {
   if (!address || typeof address !== 'string') return false
@@ -19,10 +20,11 @@ export const createPaymentLink = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Amount and asset are required.' })
     }
 
-    const parsedAmount = parseFloat(amount)
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+    if (!isPositiveAmount(amount)) {
       return res.status(400).json({ error: 'Amount must be a positive number.' })
     }
+
+    const decimalAmount = toDecimal(amount)
 
     if (!req.userId) {
       return res.status(401).json({ error: 'Unauthorized' })
@@ -36,7 +38,7 @@ export const createPaymentLink = async (req: AuthRequest, res: Response) => {
     const paymentLink = await prisma.paymentLink.create({
       data: {
         creator_wallet: user.wallet_address,
-        amount: parsedAmount,
+        amount: decimalAmount,
         asset: asset.toUpperCase(),
         status: 'ACTIVE'
       }
@@ -135,6 +137,13 @@ export const submitPaymentLinkTx = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Payment link not found.' })
     }
 
+    if (paymentLink.status !== 'ACTIVE') {
+      return res.status(409).json({
+        error: `This payment link is '${paymentLink.status}' and cannot be paid again.`,
+        code: 'LINK_ALREADY_SETTLED',
+      })
+    }
+
     let txData: any
     try {
       txData = JSON.parse(Buffer.from(xdr, 'base64').toString('utf-8'))
@@ -142,7 +151,27 @@ export const submitPaymentLinkTx = async (req: Request, res: Response) => {
       txData = { payer: 'payer_wallet', recipient: paymentLink.creator_wallet, amount: paymentLink.amount }
     }
 
-    const txHash = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+    const txHash = req.body.txHash || `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+
+    // Replay check
+    const existingTx = await prisma.transaction.findUnique({ where: { tx_hash: txHash } })
+    if (existingTx) {
+      return res.status(409).json({ error: 'Transaction hash already used.', code: 'DUPLICATE_TX_HASH' })
+    }
+
+    // Atomic race-condition lock
+    const updateResult = await prisma.paymentLink.updateMany({
+      where: { id, status: 'ACTIVE' },
+      data: { status: 'COMPLETED' },
+    })
+
+    if (updateResult.count === 0) {
+      return res.status(409).json({
+        error: 'Concurrent settlement detected: Payment link was already settled.',
+        code: 'RACE_CONDITION_BLOCKED',
+      })
+    }
+
     const payerWallet = txData.payer || 'payer_wallet'
     const recipientWallet = paymentLink.creator_wallet
     const paymentAmount = paymentLink.amount
@@ -156,14 +185,8 @@ export const submitPaymentLinkTx = async (req: Request, res: Response) => {
         asset_type: paymentLink.asset,
         purpose: `Payment Link Invoice (${id.slice(0, 8)})`,
         tx_hash: txHash,
-        status: 'SUCCESS'
-      }
-    })
-
-    // Update payment link status to COMPLETED
-    await prisma.paymentLink.update({
-      where: { id },
-      data: { status: 'COMPLETED' }
+        status: 'SUCCESS',
+      },
     })
 
     // Notify link creator

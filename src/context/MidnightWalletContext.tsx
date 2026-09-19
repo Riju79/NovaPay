@@ -16,6 +16,13 @@ import {
 } from '../lib/midnight-wallet'
 
 import { API_URL } from '../config'
+import {
+  getStoredAuthToken,
+  setStoredAuthToken,
+  getStoredRefreshToken,
+  setStoredRefreshToken,
+  clearStoredAuthTokens,
+} from '../lib/auth'
 
 export interface WalletBalances {
   unshieldedTDust: string
@@ -33,10 +40,22 @@ export interface WalletAsset {
   decimals: number
 }
 
+export interface AuthenticatedUser {
+  id: string
+  fullName: string
+  email: string
+  walletAddress: string
+  wallet_address?: string
+  walletConnected: boolean
+}
+
 interface MidnightWalletContextType {
   wallet: MidnightWalletSession | null
+  authToken: string | null
+  authUser: AuthenticatedUser | null
   isConnected: boolean
   isConnecting: boolean
+  isAuthenticating: boolean
   isLoadingData: boolean
   error: MidnightWalletError | null
   isModalOpen: boolean
@@ -64,7 +83,10 @@ const MidnightWalletContext = createContext<MidnightWalletContextType | undefine
 
 export function MidnightWalletProvider({ children }: { children: React.ReactNode }) {
   const [wallet, setWallet] = useState<MidnightWalletSession | null>(null)
+  const [authToken, setAuthToken] = useState<string | null>(null)
+  const [authUser, setAuthUser] = useState<AuthenticatedUser | null>(null)
   const [isConnecting, setIsConnecting] = useState(false)
+  const [isAuthenticating, setIsAuthenticating] = useState(false)
   const [isLoadingData, setIsLoadingData] = useState(false)
   const [error, setError] = useState<MidnightWalletError | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -75,6 +97,14 @@ export function MidnightWalletProvider({ children }: { children: React.ReactNode
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null)
   const [isLoadingBalance, setIsLoadingBalance] = useState(false)
 
+  // Initialize stored token on mount
+  useEffect(() => {
+    const stored = getStoredAuthToken()
+    if (stored) {
+      setAuthToken(stored)
+    }
+  }, [])
+
   const refreshDetection = useCallback(async () => {
     try {
       const results = await detectAllWallets()
@@ -83,6 +113,111 @@ export function MidnightWalletProvider({ children }: { children: React.ReactNode
       console.warn('[MidnightWallet] Error detecting wallets:', err)
     }
   }, [])
+
+  /**
+   * Challenge-response authentication with the backend
+   */
+  const authenticateWithBackend = useCallback(
+    async (
+      address: string,
+      shieldedAddress?: string,
+      unshieldedAddress?: string
+    ): Promise<string | null> => {
+      setIsAuthenticating(true)
+      try {
+        console.log('[1AM Auth] Requesting authentication challenge for:', address)
+        // 1. Request challenge
+        const challengeRes = await fetch(`${API_URL}/api/auth/challenge`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            address,
+            network: 'preview',
+          }),
+        })
+
+        if (!challengeRes.ok) {
+          const errData = await challengeRes.json().catch(() => ({}))
+          throw new Error(errData?.error || 'Failed to obtain challenge from server.')
+        }
+
+        const challengeData = await challengeRes.json()
+        const { challengeId, statement } = challengeData
+
+        // 2. Request signature from 1AM if supported
+        let signature: string | undefined = undefined
+        const raw1AM = getRaw1AMProvider()
+
+        if (raw1AM && typeof (raw1AM as any).signData === 'function') {
+          try {
+            console.log('[1AM Auth] Requesting 1AM signature via signData...')
+            const hexStatement = Buffer.from(statement).toString('hex')
+            signature = await (raw1AM as any).signData(address, hexStatement)
+          } catch (signErr) {
+            console.warn('[1AM Auth] 1AM signData declined or failed:', signErr)
+          }
+        } else if (raw1AM && typeof (raw1AM as any).signMessage === 'function') {
+          try {
+            console.log('[1AM Auth] Requesting 1AM signature via signMessage...')
+            signature = await (raw1AM as any).signMessage(statement)
+          } catch (signErr) {
+            console.warn('[1AM Auth] 1AM signMessage declined or failed:', signErr)
+          }
+        }
+
+        // 3. Verify challenge with backend
+        console.log('[1AM Auth] Verifying challenge response with backend...')
+        const verifyRes = await fetch(`${API_URL}/api/auth/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            challengeId,
+            address,
+            signature,
+            network: 'preview',
+            shieldedAddress,
+            unshieldedAddress,
+          }),
+        })
+
+        if (!verifyRes.ok) {
+          const errData = await verifyRes.json().catch(() => ({}))
+          throw new Error(errData?.error || 'Challenge verification failed.')
+        }
+
+        const verifyData = await verifyRes.json()
+        const token = verifyData.token
+        const refreshToken = verifyData.refreshToken
+
+        if (token) {
+          setStoredAuthToken(token)
+          setAuthToken(token)
+        }
+        if (refreshToken) {
+          setStoredRefreshToken(refreshToken)
+        }
+        if (verifyData.user) {
+          setAuthUser({
+            ...verifyData.user,
+            wallet_address: verifyData.user.walletAddress,
+          })
+        }
+
+        console.log('[1AM Auth] Successfully authenticated application session with backend.')
+        return token
+      } catch (err: any) {
+        console.error('[1AM Auth] Authentication failed:', err)
+        throw new MidnightWalletError(
+          'AUTHENTICATION_FAILED',
+          `1AM Wallet authentication failed: ${err?.message || err}`,
+          err
+        )
+      } finally {
+        setIsAuthenticating(false)
+      }
+    },
+    []
+  )
 
   const syncWalletState = useCallback(async () => {
     if (!wallet?.address) {
@@ -98,6 +233,7 @@ export function MidnightWalletProvider({ children }: { children: React.ReactNode
 
     try {
       const address = wallet.address
+      const currentToken = authToken || getStoredAuthToken()
 
       // 1. Fetch live balance & assets
       let liveTDust = '0.00'
@@ -117,10 +253,15 @@ export function MidnightWalletProvider({ children }: { children: React.ReactNode
         }
       }
 
-      // Query server endpoint ONLY IF extension direct balance is completely zero
+      // Query server endpoint with authenticated header ONLY IF extension direct balance is zero
       if (liveUnshielded === '0.00' && liveShielded === '0.00' && liveTDust === '0.00' && liveUsdc === '0.00') {
         try {
-          const balRes = await fetch(`${API_URL}/api/payment-methods/balances?address=${encodeURIComponent(address)}`)
+          const headers: Record<string, string> = {}
+          if (currentToken) headers['Authorization'] = `Bearer ${currentToken}`
+
+          const balRes = await fetch(`${API_URL}/api/payment-methods/balances?address=${encodeURIComponent(address)}`, {
+            headers,
+          })
           if (balRes.ok) {
             const balData = await balRes.json()
             liveTDust = balData.tDust || balData.midnight || '0.00'
@@ -165,9 +306,14 @@ export function MidnightWalletProvider({ children }: { children: React.ReactNode
       ]
       setAssets(assetList)
 
-      // 3. Fetch Transaction Activity Data
+      // 3. Fetch Transaction Activity Data with Auth Token
       try {
-        const txRes = await fetch(`${API_URL}/api/send-money/history?walletAddress=${encodeURIComponent(address)}`)
+        const headers: Record<string, string> = {}
+        if (currentToken) headers['Authorization'] = `Bearer ${currentToken}`
+
+        const txRes = await fetch(`${API_URL}/api/send-money/history?walletAddress=${encodeURIComponent(address)}`, {
+          headers,
+        })
         if (txRes.ok) {
           const txData = await txRes.json()
           setTransactions(Array.isArray(txData) ? txData : [])
@@ -193,7 +339,7 @@ export function MidnightWalletProvider({ children }: { children: React.ReactNode
       setIsLoadingData(false)
       setIsLoadingBalance(false)
     }
-  }, [wallet?.address])
+  }, [wallet?.address, authToken])
 
   const refreshWalletData = useCallback(async () => {
     await syncWalletState()
@@ -204,98 +350,159 @@ export function MidnightWalletProvider({ children }: { children: React.ReactNode
   }, [syncWalletState])
 
   useEffect(() => {
-    if (wallet?.address) {
+    if (wallet?.address && authToken) {
       syncWalletState()
     }
-  }, [wallet?.address, syncWalletState])
+  }, [wallet?.address, authToken, syncWalletState])
 
   // Auto-reconnect saved session on page load / hard refresh
   useEffect(() => {
-    detectAllWallets().then((results) => {
-      setDetection(results)
-    }).catch((err) => {
-      console.warn('[MidnightWallet] Initial detection error:', err)
-    })
+    detectAllWallets()
+      .then((results) => {
+        setDetection(results)
+      })
+      .catch((err) => {
+        console.warn('[MidnightWallet] Initial detection error:', err)
+      })
 
     if (typeof window !== 'undefined') {
       const savedProvider = localStorage.getItem(STORAGE_SESSION_KEY)
+      const savedToken = getStoredAuthToken()
+
       if (savedProvider === '1am') {
         setIsConnecting(true)
-        connectWallet('1am').then((session) => {
-          if (session && session.connected) {
-            console.log('[MidnightWallet] Auto-reconnected saved 1AM session after page refresh:', session.address)
-            setWallet(session)
-          }
-        }).catch((err) => {
-          console.warn('[MidnightWallet] Auto-reconnect after refresh warning:', err)
-        }).finally(() => {
-          setIsConnecting(false)
-        })
+        connectWallet('1am')
+          .then(async (session) => {
+            if (session && session.connected) {
+              // Verify network
+              if (session.networkId && session.networkId.toLowerCase() !== 'preview') {
+                throw new MidnightWalletError(
+                  'WRONG_NETWORK',
+                  `1AM Wallet network is '${session.networkId}', but Midnight is required.`
+                )
+              }
+
+              setWallet(session)
+
+              // Verify or renew token
+              if (savedToken) {
+                try {
+                  const meRes = await fetch(`${API_URL}/api/auth/me`, {
+                    headers: { Authorization: `Bearer ${savedToken}` },
+                  })
+                  if (meRes.ok) {
+                    const meData = await meRes.json()
+                    const tokenWallet = (meData?.wallet_address || meData?.walletAddress || '').toLowerCase()
+                    const currentAddrs = [
+                      session.address?.toLowerCase(),
+                      session.shieldedAddress?.toLowerCase(),
+                      session.unshieldedAddress?.toLowerCase(),
+                    ].filter(Boolean)
+
+                    if (tokenWallet && currentAddrs.includes(tokenWallet)) {
+                      setAuthToken(savedToken)
+                      setAuthUser(meData)
+                      return
+                    }
+                  }
+                } catch {
+                  // Fall through to re-authenticate
+                }
+              }
+
+              // Re-authenticate if token invalid, absent, or belongs to a different wallet
+              await authenticateWithBackend(session.address, session.shieldedAddress, session.unshieldedAddress)
+            }
+          })
+          .catch((err) => {
+            console.warn('[MidnightWallet] Auto-reconnect after refresh warning:', err)
+            clearStoredAuthTokens()
+          })
+          .finally(() => {
+            setIsConnecting(false)
+          })
       }
     }
-  }, [])
+  }, [authenticateWithBackend])
 
-  // 1. Live Extension Event & Heartbeat Synchronization (only when explicitly connected)
+  // 1. Live Extension Event & Heartbeat Synchronization (account switch & network check)
   useEffect(() => {
     if (!wallet || !wallet.connected) return
 
-    // 1.5s Fast Heartbeat to check active 1AM address & state changes
-    const interval = setInterval(async () => {
+    const handleAccountOrNetworkChange = async () => {
       try {
         const raw1AM = getRaw1AMProvider()
         if (!raw1AM) return
 
         const extracted = await extractMidnightAddresses(raw1AM, raw1AM)
+
+        // Network mismatch check
+        if (extracted.networkId && extracted.networkId.toLowerCase() !== 'preview') {
+          console.warn('[MidnightWallet] Network switch to non-preview detected:', extracted.networkId)
+          setError(
+            new MidnightWalletError(
+              'WRONG_NETWORK',
+              `1AM Wallet was switched to '${extracted.networkId}'. Please reconnect on Midnight.`
+            )
+          )
+          clearStoredAuthTokens()
+          setAuthToken(null)
+          setAuthUser(null)
+          setWallet(null)
+          return
+        }
+
+        // Account change check
         if (
           extracted.address &&
           (extracted.address !== wallet.address || extracted.shieldedAddress !== wallet.shieldedAddress)
         ) {
-          console.log('[MidnightWallet] Live account change detected from 1AM extension:', extracted.address)
-          setWallet((prev) => {
-            if (!prev) return null
-            return {
-              ...prev,
-              address: extracted.address,
-              shieldedAddress: extracted.shieldedAddress,
-              unshieldedAddress: extracted.unshieldedAddress,
-              connectedAt: Date.now(),
-            }
-          })
+          console.log('[MidnightWallet] Account change detected from 1AM extension:', extracted.address)
+
+          // Invalidate old session tokens immediately
+          clearStoredAuthTokens()
+          setAuthToken(null)
+          setAuthUser(null)
+
+          const newSession: MidnightWalletSession = {
+            ...wallet,
+            address: extracted.address,
+            shieldedAddress: extracted.shieldedAddress,
+            unshieldedAddress: extracted.unshieldedAddress,
+            connectedAt: Date.now(),
+          }
+          setWallet(newSession)
+
+          // Re-authenticate for the new address
+          await authenticateWithBackend(extracted.address, extracted.shieldedAddress, extracted.unshieldedAddress)
         }
       } catch (err) {
-        console.warn('[MidnightWallet] Live sync error:', err)
-      }
-    }, 1500)
-
-    // Extension Native Events
-    const raw1AM = getRaw1AMProvider()
-    const handleAccountChange = async () => {
-      console.log('[MidnightWallet] 1AM Extension accountChanged event received')
-      try {
-        const session = await connectWallet('1am')
-        setWallet(session)
-      } catch (err) {
-        console.warn('[MidnightWallet] Event sync error:', err)
+        console.warn('[MidnightWallet] Account change handler error:', err)
       }
     }
 
+    // 1.5s fast heartbeat
+    const interval = setInterval(handleAccountOrNetworkChange, 1500)
+
+    // Native extension listeners
+    const raw1AM = getRaw1AMProvider()
     if (raw1AM && typeof (raw1AM as any).on === 'function') {
-      ;(raw1AM as any).on('accountsChanged', handleAccountChange)
-      ;(raw1AM as any).on('accountChanged', handleAccountChange)
-      ;(raw1AM as any).on('networkChanged', handleAccountChange)
+      ;(raw1AM as any).on('accountsChanged', handleAccountOrNetworkChange)
+      ;(raw1AM as any).on('accountChanged', handleAccountOrNetworkChange)
+      ;(raw1AM as any).on('networkChanged', handleAccountOrNetworkChange)
     }
 
     return () => {
       clearInterval(interval)
       if (raw1AM && typeof (raw1AM as any).off === 'function') {
-        ;(raw1AM as any).off('accountsChanged', handleAccountChange)
-        ;(raw1AM as any).off('accountChanged', handleAccountChange)
-        ;(raw1AM as any).off('networkChanged', handleAccountChange)
+        ;(raw1AM as any).off('accountsChanged', handleAccountOrNetworkChange)
+        ;(raw1AM as any).off('accountChanged', handleAccountOrNetworkChange)
+        ;(raw1AM as any).off('networkChanged', handleAccountOrNetworkChange)
       }
     }
-  }, [wallet])
+  }, [wallet, authenticateWithBackend])
 
-  // 2. Window Focus & Tab Visibility Synchronization (only when explicitly connected)
+  // Window Focus Synchronization
   useEffect(() => {
     if (!wallet || !wallet.connected) return
 
@@ -305,36 +512,23 @@ export function MidnightWalletProvider({ children }: { children: React.ReactNode
         const raw1AM = getRaw1AMProvider()
         if (!raw1AM) return
         const extracted = await extractMidnightAddresses(raw1AM, raw1AM)
-        if (extracted.address && (extracted.address !== wallet.address || extracted.shieldedAddress !== wallet.shieldedAddress)) {
-          setWallet((prev) => {
-            if (!prev) return null
-            return {
-              ...prev,
-              address: extracted.address,
-              shieldedAddress: extracted.shieldedAddress,
-              unshieldedAddress: extracted.unshieldedAddress,
-              connectedAt: Date.now(),
-            }
-          })
+        if (extracted.address && extracted.address !== wallet.address) {
+          clearStoredAuthTokens()
+          setAuthToken(null)
+          setAuthUser(null)
+          setWallet((prev) => (prev ? { ...prev, address: extracted.address } : null))
+          await authenticateWithBackend(extracted.address, extracted.shieldedAddress, extracted.unshieldedAddress)
         }
       } catch {
-        // Keep current state if extension focus check fails
+        // Keep current state
       }
     }
 
     window.addEventListener('focus', syncExtensionState)
-    const handleVis = () => {
-      if (document.visibilityState === 'visible') {
-        syncExtensionState()
-      }
-    }
-    document.addEventListener('visibilitychange', handleVis)
-
     return () => {
       window.removeEventListener('focus', syncExtensionState)
-      document.removeEventListener('visibilitychange', handleVis)
     }
-  }, [wallet])
+  }, [wallet, authenticateWithBackend])
 
   const openModal = useCallback(() => {
     refreshDetection()
@@ -350,46 +544,78 @@ export function MidnightWalletProvider({ children }: { children: React.ReactNode
     setError(null)
   }, [])
 
-  const connect = useCallback(async (provider: MidnightWalletProviderId = '1am'): Promise<boolean> => {
-    setIsConnecting(true)
-    setError(null)
+  const connect = useCallback(
+    async (provider: MidnightWalletProviderId = '1am'): Promise<boolean> => {
+      setIsConnecting(true)
+      setError(null)
 
-    try {
-      const session = await connectWallet(provider)
-      setWallet(session)
+      try {
+        // 1. Connect to 1AM Wallet
+        const session = await connectWallet(provider)
 
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(STORAGE_SESSION_KEY, '1am')
+        // 2. Validate network is strictly Preview
+        if (session.networkId && session.networkId.toLowerCase() !== 'preview') {
+          throw new MidnightWalletError(
+            'WRONG_NETWORK',
+            `1AM Wallet is connected to '${session.networkId}', but Midnight is required. Please switch networks in your 1AM wallet.`
+          )
+        }
+
+        setWallet(session)
+
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(STORAGE_SESSION_KEY, '1am')
+        }
+
+        // 3. Execute Challenge-Response Authentication with Backend
+        await authenticateWithBackend(session.address, session.shieldedAddress, session.unshieldedAddress)
+
+        setIsModalOpen(false)
+        return true
+      } catch (err: unknown) {
+        const walletErr =
+          err instanceof MidnightWalletError
+            ? err
+            : new MidnightWalletError('UNKNOWN_ERROR', (err as Error)?.message || String(err), err)
+
+        setError(walletErr)
+        setWallet(null)
+        clearStoredAuthTokens()
+        setAuthToken(null)
+        setAuthUser(null)
+        setIsModalOpen(true)
+        return false
+      } finally {
+        setIsConnecting(false)
       }
-
-      setIsModalOpen(false)
-      return true
-    } catch (err: unknown) {
-      const walletErr =
-        err instanceof MidnightWalletError
-          ? err
-          : new MidnightWalletError('UNKNOWN_ERROR', (err as Error)?.message || String(err), err)
-      
-      setError(walletErr)
-      setWallet(null)
-      setIsModalOpen(true)
-      return false
-    } finally {
-      setIsConnecting(false)
-    }
-  }, [])
+    },
+    [authenticateWithBackend]
+  )
 
   const disconnect = useCallback(async () => {
     setIsConnecting(true)
     try {
+      const currentToken = authToken || getStoredAuthToken()
+      if (currentToken) {
+        await fetch(`${API_URL}/api/auth/logout`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${currentToken}`,
+          },
+        }).catch(() => {})
+      }
       await disconnectWallet(wallet)
     } finally {
+      clearStoredAuthTokens()
       if (typeof window !== 'undefined') {
         localStorage.removeItem(STORAGE_SESSION_KEY)
         localStorage.removeItem('novapay_custom_address')
         localStorage.removeItem('novapay_midnight_wallet_session')
       }
       setWallet(null)
+      setAuthToken(null)
+      setAuthUser(null)
       setBalance(null)
       setAssets([])
       setTransactions([])
@@ -398,14 +624,17 @@ export function MidnightWalletProvider({ children }: { children: React.ReactNode
       setIsConnecting(false)
       setIsLoadingData(false)
     }
-  }, [wallet])
+  }, [wallet, authToken])
 
   return (
     <MidnightWalletContext.Provider
       value={{
         wallet,
-        isConnected: Boolean(wallet && wallet.connected && wallet.address),
+        authToken,
+        authUser,
+        isConnected: Boolean(wallet && wallet.connected && wallet.address && authToken),
         isConnecting,
+        isAuthenticating,
         isLoadingData,
         error,
         isModalOpen,

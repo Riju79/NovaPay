@@ -42,3 +42,8 @@ yarn-error.log*
 # Rust / Cargo
 **/target/
 **/test_snapshots/
+
+# Local cache & databases
+cache/
+*.db
+*.db-*

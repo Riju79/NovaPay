@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import { API_URL, getExplorerTxUrl } from '@/config'
+import { getAuthHeaders } from '@/lib/auth'
 import {
   Clock,
   Search,
@@ -37,6 +38,30 @@ interface DBTransaction {
   created_at: string
 }
 
+interface RemittanceRecord {
+  id: string
+  idempotencyKey?: string
+  senderId?: string
+  recipientId?: string
+  senderCurrency: string
+  senderAmount: string
+  recipientCurrency: string
+  recipientAmount: string
+  exchangeRate: string
+  feeTotal: string
+  status: string
+  purpose: string
+  settlementRail: string
+  beneficiary?: {
+    id: string
+    fullName: string
+    walletAddress: string
+    payoutMethod: string
+  } | null
+  createdAt: string
+  updatedAt: string
+}
+
 interface Notification {
   id: string
   wallet_address: string
@@ -51,21 +76,23 @@ import { useMidnightWallet } from '@/context/MidnightWalletContext'
 
 export default function ActivityPage() {
   const router = useRouter()
-  const user: any = null
-  const token = null
-  const { wallet, isConnected } = useMidnightWallet()
-  const publicKey = wallet?.address || null
-  const isUserAuthenticated = true
+  const { wallet, isConnected, authToken, authUser, network } = useMidnightWallet()
+  const user = authUser
+  const token = authToken
+  const publicKey = wallet?.address || authUser?.walletAddress || null
+  const isUserAuthenticated = Boolean(isConnected && authToken)
+  const isNetworkMismatch = isConnected && network ? !network.toLowerCase().includes('preview') : false
 
   // State
   const [transactions, setTransactions] = useState<DBTransaction[]>([])
+  const [remittances, setRemittances] = useState<RemittanceRecord[]>([])
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Filters and UI states
-  const [activeTab, setActiveTab] = useState<'all' | 'transactions' | 'notifications'>('all')
+  const [activeTab, setActiveTab] = useState<'all' | 'transactions' | 'remittances' | 'notifications'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState<'all' | 'sent' | 'received' | 'notifications'>('all')
   const [statusFilter, setStatusFilter] = useState<'all' | 'SUCCESS' | 'FAILED' | 'READ' | 'UNREAD'>('all')
@@ -73,12 +100,14 @@ export default function ActivityPage() {
 
   // Selected item modal
   const [selectedTx, setSelectedTx] = useState<DBTransaction | null>(null)
+  const [selectedRemittance, setSelectedRemittance] = useState<RemittanceRecord | null>(null)
   const [copiedText, setCopiedText] = useState<string | null>(null)
 
   // Fetch data
   const fetchData = async (showSpinner = true) => {
     if (!publicKey) {
       setTransactions([])
+      setRemittances([])
       setNotifications([])
       setIsLoading(false)
       setIsRefreshing(false)
@@ -89,19 +118,30 @@ export default function ActivityPage() {
     setError(null)
     try {
       const addressParam = `?walletAddress=${encodeURIComponent(publicKey)}`
-      const [txRes, notifRes] = await Promise.all([
-        fetch(`${API_URL}/api/send-money/history${addressParam}`),
-        fetch(`${API_URL}/api/notifications${addressParam}`)
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      }
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
+      const [txRes, notifRes, remitRes] = await Promise.all([
+        fetch(`${API_URL}/api/send-money/history${addressParam}`, { headers }),
+        fetch(`${API_URL}/api/notifications${addressParam}`, { headers }),
+        fetch(`${API_URL}/api/remittances`, { headers })
       ])
 
       const txData = txRes.ok ? await txRes.json() : []
       const notifData = notifRes.ok ? await notifRes.json() : []
+      const remitData = remitRes.ok ? await remitRes.json() : []
 
       setTransactions(Array.isArray(txData) ? txData : [])
       setNotifications(Array.isArray(notifData) ? notifData : [])
+      setRemittances(Array.isArray(remitData) ? remitData : [])
     } catch (err: any) {
       console.error('Error fetching activity data:', err)
       setTransactions([])
+      setRemittances([])
       setNotifications([])
     } finally {
       setIsLoading(false)
@@ -111,7 +151,7 @@ export default function ActivityPage() {
 
   useEffect(() => {
     fetchData(true)
-  }, [publicKey])
+  }, [publicKey, token])
 
   // Refresh helper
   const handleRefresh = () => {
@@ -234,6 +274,7 @@ export default function ActivityPage() {
   const filteredActivities = useMemo(() => {
     const items: Array<
       | { itemType: 'transaction'; data: DBTransaction; timestamp: number }
+      | { itemType: 'remittance'; data: RemittanceRecord; timestamp: number }
       | { itemType: 'notification'; data: Notification; timestamp: number }
     > = []
 
@@ -254,7 +295,7 @@ export default function ActivityPage() {
 
         const matchesStatus =
           statusFilter === 'all' ||
-          (statusFilter === 'SUCCESS' && tx.status === 'SUCCESS') ||
+          (statusFilter === 'SUCCESS' && (tx.status === 'SUCCESS' || tx.status === 'CONFIRMED')) ||
           (statusFilter === 'FAILED' && tx.status === 'FAILED')
 
         if (matchesQuery && matchesType && matchesStatus) {
@@ -267,7 +308,33 @@ export default function ActivityPage() {
       })
     }
 
-    // 2. Add Notifications if matches activeTab
+    // 2. Add Remittances if matches activeTab
+    if (activeTab === 'all' || activeTab === 'remittances') {
+      remittances.forEach(r => {
+        const matchesQuery =
+          r.purpose.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (r.beneficiary?.fullName && r.beneficiary.fullName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (r.beneficiary?.walletAddress && r.beneficiary.walletAddress.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          r.status.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          r.senderCurrency.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          r.recipientCurrency.toLowerCase().includes(searchQuery.toLowerCase())
+
+        const matchesStatus =
+          statusFilter === 'all' ||
+          (statusFilter === 'SUCCESS' && (r.status === 'COMPLETED' || r.status === 'BLOCKCHAIN_CONFIRMED')) ||
+          (statusFilter === 'FAILED' && (r.status === 'FAILED' || r.status === 'CANCELLED'))
+
+        if (matchesQuery && matchesStatus) {
+          items.push({
+            itemType: 'remittance',
+            data: r,
+            timestamp: new Date(r.createdAt).getTime()
+          })
+        }
+      })
+    }
+
+    // 3. Add Notifications if matches activeTab
     if (activeTab === 'all' || activeTab === 'notifications') {
       notifications.forEach(n => {
         const matchesQuery =
@@ -291,7 +358,7 @@ export default function ActivityPage() {
       })
     }
 
-    // 3. Sort items
+    // 4. Sort items
     return items.sort((a, b) => {
       if (sortBy === 'newest') {
         return b.timestamp - a.timestamp
@@ -299,7 +366,7 @@ export default function ActivityPage() {
         return a.timestamp - b.timestamp
       }
     })
-  }, [transactions, notifications, activeTab, searchQuery, typeFilter, statusFilter, sortBy, publicKey])
+  }, [transactions, remittances, notifications, activeTab, searchQuery, typeFilter, statusFilter, sortBy, publicKey])
 
   // Count helper for unread notifications
   const unreadCount = useMemo(() => {
@@ -338,9 +405,14 @@ export default function ActivityPage() {
         {/* Page Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight font-sans">Activity Log</h1>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-3xl font-extrabold tracking-tight font-sans">Activity Log</h1>
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                MIDNIGHT NETWORK
+              </span>
+            </div>
             <p className="text-sm text-black/50 mt-1 font-medium font-sans">
-              Audit ledger payment routes and view real-time system alerts.
+              Audit Midnight ledger payment routes and view real-time system alerts.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -364,8 +436,18 @@ export default function ActivityPage() {
           </div>
         </div>
 
+        {isNetworkMismatch && (
+          <div className="mb-8 p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center gap-3 text-amber-500 text-xs">
+            <AlertCircle className="w-5 h-5 shrink-0" />
+            <div>
+              <p className="font-bold">Network Mismatch Warning</p>
+              <p className="text-amber-500/80">Your connected wallet is set to &ldquo;{network}&rdquo;. NovaPay operates on Midnight.</p>
+            </div>
+          </div>
+        )}
+
         {/* Overview Stat Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-black/95 border border-white/10 rounded-2xl p-5 text-white shadow-xl relative overflow-hidden">
             <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider block">Wallet Address</span>
             <span className="font-mono text-xs font-bold text-white/95 mt-2 block select-all">
@@ -374,8 +456,13 @@ export default function ActivityPage() {
           </div>
 
           <div className="bg-black/95 border border-white/10 rounded-2xl p-5 text-white shadow-xl">
-            <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider block">Total Transactions</span>
+            <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider block">Direct Transfers</span>
             <span className="text-xl font-black text-white mt-1 block">{transactions.length} Logged</span>
+          </div>
+
+          <div className="bg-black/95 border border-white/10 rounded-2xl p-5 text-white shadow-xl">
+            <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider block">Remittances</span>
+            <span className="text-xl font-black text-white mt-1 block">{remittances.length} Logged</span>
           </div>
 
           <div className="bg-black/95 border border-white/10 rounded-2xl p-5 text-white shadow-xl flex justify-between items-center">
@@ -393,14 +480,14 @@ export default function ActivityPage() {
         <div className="bg-black/95 border border-white/10 rounded-3xl p-6 shadow-2xl text-white mb-8">
           <div className="flex flex-col gap-6">
             {/* Tab Swapping */}
-            <div className="flex border-b border-white/10 pb-1 gap-5">
+            <div className="flex border-b border-white/10 pb-1 gap-5 overflow-x-auto">
               <button
                 onClick={() => {
                   setActiveTab('all')
                   setTypeFilter('all')
                   setStatusFilter('all')
                 }}
-                className={`pb-3 text-sm font-bold tracking-wide transition-all border-b-2 cursor-pointer relative ${
+                className={`pb-3 text-sm font-bold tracking-wide transition-all border-b-2 cursor-pointer whitespace-nowrap ${
                   activeTab === 'all'
                     ? 'border-white text-white'
                     : 'border-transparent text-white/40 hover:text-white/70'
@@ -414,13 +501,27 @@ export default function ActivityPage() {
                   setTypeFilter('all')
                   setStatusFilter('all')
                 }}
-                className={`pb-3 text-sm font-bold tracking-wide transition-all border-b-2 cursor-pointer ${
+                className={`pb-3 text-sm font-bold tracking-wide transition-all border-b-2 cursor-pointer whitespace-nowrap ${
                   activeTab === 'transactions'
                     ? 'border-white text-white'
                     : 'border-transparent text-white/40 hover:text-white/70'
                 }`}
               >
-                Transactions ({transactions.length})
+                Transfers ({transactions.length})
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('remittances')
+                  setTypeFilter('all')
+                  setStatusFilter('all')
+                }}
+                className={`pb-3 text-sm font-bold tracking-wide transition-all border-b-2 cursor-pointer whitespace-nowrap ${
+                  activeTab === 'remittances'
+                    ? 'border-white text-white'
+                    : 'border-transparent text-white/40 hover:text-white/70'
+                }`}
+              >
+                Remittances ({remittances.length})
               </button>
               <button
                 onClick={() => {
@@ -428,7 +529,7 @@ export default function ActivityPage() {
                   setTypeFilter('all')
                   setStatusFilter('all')
                 }}
-                className={`pb-3 text-sm font-bold tracking-wide transition-all border-b-2 cursor-pointer flex items-center gap-1.5 ${
+                className={`pb-3 text-sm font-bold tracking-wide transition-all border-b-2 cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                   activeTab === 'notifications'
                     ? 'border-white text-white'
                     : 'border-transparent text-white/40 hover:text-white/70'
@@ -608,6 +709,64 @@ export default function ActivityPage() {
                       </div>
                     </div>
                   )
+                } else if (activity.itemType === 'remittance') {
+                  const remit = activity.data
+                  return (
+                    <div
+                      key={remit.id}
+                      onClick={() => setSelectedRemittance(remit)}
+                      className="group flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-white/[0.01] hover:bg-white/[0.03] border border-white/5 hover:border-white/10 rounded-2xl transition-all duration-200 cursor-pointer"
+                    >
+                      <div className="flex items-start gap-3.5">
+                        <div className="p-2.5 rounded-xl shrink-0 border mt-0.5 bg-blue-500/10 border-blue-500/20 text-blue-400">
+                          <ArrowUpRight size={18} />
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm text-white/95">
+                              Remittance ({remit.senderCurrency} → {remit.recipientCurrency})
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-[6px] text-[9px] font-black uppercase tracking-wide ${
+                              remit.status === 'COMPLETED' || remit.status === 'BLOCKCHAIN_CONFIRMED'
+                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/10'
+                                : remit.status === 'FAILED' || remit.status === 'CANCELLED'
+                                  ? 'bg-rose-500/10 text-rose-400 border border-rose-500/10'
+                                  : remit.status === 'MANUAL_REVIEW'
+                                    ? 'bg-amber-500/10 text-amber-400 border border-amber-500/10'
+                                    : 'bg-blue-500/10 text-blue-400 border border-blue-500/10'
+                            }`}>
+                              {remit.status}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-white/45 font-medium leading-relaxed font-mono">
+                            Recipient: {remit.beneficiary?.fullName || 'Beneficiary'} {remit.beneficiary?.walletAddress ? `(${truncate(remit.beneficiary.walletAddress)})` : ''}
+                          </p>
+                          <p className="text-[10px] text-white/30 font-semibold uppercase tracking-wider">
+                            Settlement Rail: {(remit.settlementRail || 'MIDNIGHT').replace('_PREVIEW', '')} • Rate: 1 {remit.senderCurrency} = {remit.exchangeRate} {remit.recipientCurrency}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex sm:flex-col justify-between items-end gap-1 shrink-0 self-end sm:self-center">
+                        <span className="font-mono text-sm font-black text-white/90">
+                          {remit.senderAmount} <span className="text-xs text-white/40">{remit.senderCurrency}</span>
+                        </span>
+                        <div className="flex items-center gap-2 text-right">
+                          <span className="text-[10px] text-white/40 font-medium font-sans">
+                            {new Date(remit.createdAt).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                          <span className="text-[10px] text-white/30 group-hover:text-white/60 transition-colors uppercase font-bold tracking-wider hidden sm:block">
+                            Details →
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )
                 } else {
                   // Notification card
                   const n = activity.data
@@ -721,7 +880,7 @@ export default function ActivityPage() {
                     ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                     : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
                 }`}>
-                  {selectedTx.status === 'SUCCESS' ? 'Settled on Testnet' : 'Failed'}
+                  {selectedTx.status === 'SUCCESS' ? 'Settled on Midnight' : 'Failed'}
                 </span>
               </div>
 
@@ -805,6 +964,106 @@ export default function ActivityPage() {
               {/* Close Button */}
               <button
                 onClick={() => setSelectedTx(null)}
+                className="w-full py-2.5 bg-white text-black font-bold text-xs rounded-xl hover:bg-white/95 transition-all cursor-pointer active:scale-98"
+              >
+                Close Receipt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Remittance Details Modal */}
+      {selectedRemittance && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
+          <div className="bg-[#0F0F0F] border border-white/10 w-full max-w-md rounded-3xl p-6 shadow-2xl text-white relative">
+            <button
+              onClick={() => setSelectedRemittance(null)}
+              className="absolute right-4 top-4 p-2 hover:bg-white/5 text-white/45 hover:text-white rounded-xl transition-colors cursor-pointer"
+            >
+              <X size={16} />
+            </button>
+
+            <div className="flex flex-col items-center space-y-5">
+              <div className="w-12 h-12 rounded-full border flex items-center justify-center shadow-lg bg-blue-500/10 border-blue-500/20 text-blue-400">
+                <ArrowUpRight size={22} strokeWidth={2.5} />
+              </div>
+
+              <div className="text-center">
+                <h3 className="font-extrabold text-lg tracking-tight uppercase">
+                  Cross-Border Remittance
+                </h3>
+                <span className={`inline-flex items-center px-3 py-0.5 rounded-full text-[9px] font-bold border mt-2 ${
+                  selectedRemittance.status === 'COMPLETED' || selectedRemittance.status === 'BLOCKCHAIN_CONFIRMED'
+                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                    : selectedRemittance.status === 'FAILED' || selectedRemittance.status === 'CANCELLED'
+                      ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                      : selectedRemittance.status === 'MANUAL_REVIEW'
+                        ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                        : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                }`}>
+                  {selectedRemittance.status}
+                </span>
+              </div>
+
+              <div className="w-full bg-white/[0.02] border border-white/5 rounded-2xl p-4.5 space-y-4 text-xs font-semibold">
+                <div className="flex justify-between items-baseline gap-4">
+                  <span className="text-white/40">Source Amount</span>
+                  <span className="font-mono text-white/95 font-black text-sm">{selectedRemittance.senderAmount} {selectedRemittance.senderCurrency}</span>
+                </div>
+
+                <div className="flex justify-between items-baseline gap-4 border-t border-white/5 pt-3">
+                  <span className="text-white/40">Recipient Payout</span>
+                  <span className="font-mono text-white/95 font-black text-sm">{selectedRemittance.recipientAmount} {selectedRemittance.recipientCurrency}</span>
+                </div>
+
+                <div className="flex justify-between items-baseline gap-4 border-t border-white/5 pt-3">
+                  <span className="text-white/40">Exchange Rate</span>
+                  <span className="font-mono text-white/80">1 {selectedRemittance.senderCurrency} = {selectedRemittance.exchangeRate} {selectedRemittance.recipientCurrency}</span>
+                </div>
+
+                <div className="flex justify-between items-baseline gap-4 border-t border-white/5 pt-3">
+                  <span className="text-white/40">Fee Total</span>
+                  <span className="font-mono text-white/80">{selectedRemittance.feeTotal} {selectedRemittance.senderCurrency}</span>
+                </div>
+
+                <div className="flex justify-between items-baseline gap-4 border-t border-white/5 pt-3">
+                  <span className="text-white/40">Settlement Rail</span>
+                  <span className="font-mono text-emerald-400">{(selectedRemittance.settlementRail || 'MIDNIGHT').replace('_PREVIEW', '')}</span>
+                </div>
+
+                {selectedRemittance.beneficiary && (
+                  <div className="flex justify-between items-start gap-4 border-t border-white/5 pt-3">
+                    <span className="text-white/40">Beneficiary</span>
+                    <div className="text-right">
+                      <p className="text-white/95">{selectedRemittance.beneficiary.fullName}</p>
+                      <p className="font-mono text-[10px] text-white/50">{selectedRemittance.beneficiary.walletAddress ? truncate(selectedRemittance.beneficiary.walletAddress) : selectedRemittance.beneficiary.payoutMethod}</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-between items-baseline gap-4 border-t border-white/5 pt-3">
+                  <span className="text-white/40">Date & Time</span>
+                  <span className="text-white/90 font-medium">
+                    {new Date(selectedRemittance.createdAt).toLocaleString('en-US', {
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit'
+                    })}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-baseline gap-4 border-t border-white/5 pt-3">
+                  <span className="text-white/40">Remittance ID</span>
+                  <span className="font-mono text-[10px] text-white/60 truncate max-w-[200px] select-all">{selectedRemittance.id}</span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setSelectedRemittance(null)}
                 className="w-full py-2.5 bg-white text-black font-bold text-xs rounded-xl hover:bg-white/95 transition-all cursor-pointer active:scale-98"
               >
                 Close Receipt

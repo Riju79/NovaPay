@@ -119,27 +119,39 @@ export default function Navbar() {
           </nav>
         </div>
 
-        {/* Right: Buttons (Desktop) */}
-        <div className="hidden md:flex items-center gap-4">
+        {/* Right: Network Badge & Buttons (Desktop) */}
+        <div className="hidden md:flex items-center gap-3">
+          {/* Midnight Network Badge */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-medium">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>MIDNIGHT NETWORK</span>
+          </div>
+
           <button
             type="button"
             onClick={handleWalletButtonClick}
             className="flex items-center gap-2 px-5 py-2.5 bg-white hover:bg-white/90 text-black font-bold text-xs rounded-full shadow-md transition-all active:scale-95 cursor-pointer font-mono"
           >
             <Wallet size={14} />
-            <span>{isConnected && wallet ? truncateAddress(wallet.address) : 'Connect Wallet'}</span>
+            <span>{isConnected && wallet ? truncateAddress(wallet.address) : 'Connect 1AM'}</span>
           </button>
         </div>
 
         {/* Mobile Menu Button */}
-        <button
-          className="md:hidden p-2 text-white/80 hover:text-white focus:outline-none cursor-pointer"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          aria-expanded={mobileMenuOpen}
-          aria-label="Toggle Navigation Menu"
-        >
-          {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
+        <div className="md:hidden flex items-center gap-2">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-mono font-semibold">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span>MIDNIGHT</span>
+          </div>
+          <button
+            className="p-2 text-white/80 hover:text-white focus:outline-none cursor-pointer"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-expanded={mobileMenuOpen}
+            aria-label="Toggle Navigation Menu"
+          >
+            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
       </div>
 
       {/* Mobile Drawer */}

@@ -45,14 +45,15 @@ import { useMidnightWallet } from '@/context/MidnightWalletContext'
 
 export default function PaymentMethodsPage() {
   const router = useRouter()
-  const user: any = null
-  const token = null
-  const { wallet, isConnected, isConnecting, connect, disconnect, balance, fetchBalance, isLoadingBalance: isLoadingBalances } = useMidnightWallet()
+  const { wallet, isConnected, isConnecting, connect, disconnect, balance, network, fetchBalance, isLoadingBalance: isLoadingBalances, authToken, authUser } = useMidnightWallet()
+  const user = authUser
+  const token = authToken
   const publicKey = wallet?.address || null
   const tDustBalance = balance ? balance.tDust : '0.00'
   const usdcBalance = balance ? balance.usdc : '0.00'
   const isNotFunded = balance ? balance.isNotFunded : false
-  const isUserAuthenticated = true
+  const isUserAuthenticated = Boolean(isConnected && authToken)
+  const isNetworkMismatch = isConnected && network ? !network.toLowerCase().includes('preview') : false
 
   // State
   const [methods, setMethods] = useState<PaymentMethod[]>([])
@@ -195,7 +196,7 @@ export default function PaymentMethodsPage() {
 
 
 
-  const defaultMethod = methods.find((m) => m.is_default) || (publicKey ? { provider: 'LACE_MIDNIGHT', wallet_address: publicKey } : null)
+  const defaultMethod = methods.find((m) => m.is_default) || (publicKey ? { provider: '1AM_MIDNIGHT', wallet_address: publicKey } : null)
 
   return (
     <div className="flex flex-col min-h-screen bg-white text-black selection:bg-black selection:text-white relative overflow-hidden">
@@ -226,21 +227,36 @@ export default function PaymentMethodsPage() {
       <main className="flex-1 max-w-5xl mx-auto w-full px-6 pt-32 pb-16 relative z-10">
         {/* Page Title */}
         <div className="mb-10">
-          <h1 className="text-3xl font-extrabold tracking-tight font-sans">Payment Methods</h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-extrabold tracking-tight font-sans">Payment Methods</h1>
+            <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+              MIDNIGHT NETWORK
+            </span>
+          </div>
           <p className="text-sm text-black/50 mt-1 font-medium font-sans">
             Connect Midnight wallets, manage default funding, and create shareable payment links.
           </p>
         </div>
 
+        {isNetworkMismatch && (
+          <div className="mb-8 p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center gap-3 text-amber-500 text-xs">
+            <AlertTriangle className="w-5 h-5 shrink-0" />
+            <div>
+              <p className="font-bold">Network Mismatch Warning</p>
+              <p className="text-amber-500/80">Your connected wallet is set to &ldquo;{network}&rdquo;. NovaPay operates on Midnight.</p>
+            </div>
+          </div>
+        )}
+
         {/* Content Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start mb-16">
-          {/* Left panel: connected Freighter wallet & Preferred Default Preferences */}
+          {/* Left panel: connected Midnight wallet & Preferred Default Preferences */}
           <div className="md:col-span-2 space-y-8">
             {/* Wallet Details panel */}
             <div className="bg-black/95 border border-white/10 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden">
               <div className="absolute top-0 right-0 p-6">
-                <span className="px-2 py-0.5 rounded text-[8px] bg-white/10 text-white/80 border border-white/10 font-bold uppercase tracking-wider">
-                  Testnet Ledger
+                <span className="px-2 py-0.5 rounded text-[8px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-bold uppercase tracking-wider">
+                  Midnight Network
                 </span>
               </div>
 
@@ -314,7 +330,7 @@ export default function PaymentMethodsPage() {
                       <div className="space-y-1">
                         <p className="font-bold uppercase tracking-wider text-[10px]">Unfunded Wallet</p>
                         <p className="font-medium text-white/70 leading-relaxed">
-                          Your wallet address has not been funded on the Midnight Preprod ledger yet. Send a test payment or use faucet to instantiate this account.
+                          Your wallet address has not been funded on the Midnight ledger yet. Send a test payment or use faucet to instantiate this account.
                         </p>
                       </div>
                     </div>

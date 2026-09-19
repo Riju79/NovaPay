@@ -112,6 +112,21 @@ export class OneAMMidnightAdapter implements MidnightWalletAdapter {
         )
       }
 
+      if (
+        lowerMsg.includes('request failed') ||
+        lowerMsg.includes('failed to fetch') ||
+        lowerMsg.includes('popup closed') ||
+        lowerMsg.includes('canceled') ||
+        lowerMsg.includes('cancelled')
+      ) {
+        console.warn('[MidnightWallet] 1AM popup was closed or cancelled:', errMsg)
+        throw new MidnightWalletError(
+          'CONNECTION_REJECTED',
+          '1AM Wallet request was cancelled or closed. Please open your 1AM extension, unlock your wallet, and try connecting again.',
+          err
+        )
+      }
+
       console.error('[MidnightWallet] 1AM connection error:', err)
       throw new MidnightWalletError('PROVIDER_ERROR', `1AM connection failed: ${errMsg}`, err)
     }

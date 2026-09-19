@@ -54,6 +54,10 @@ export class RecurringContractClient {
   }
 
   public async submitRecurringTransaction(opName: string, payload: any): Promise<{ txHash: string }> {
+    if (!payload.recipientAddress) {
+      throw new Error('Recipient address is required for recurring transaction.')
+    }
+
     const raw1AM = getRaw1AMProvider()
     if (raw1AM) {
       const connectedApi = await getConnectedAPI(raw1AM, this.networkId)
@@ -62,7 +66,7 @@ export class RecurringContractClient {
           console.log(`[RecurringClient] Attempting native wallet transfer for ${opName}...`)
           const transferRes = await execute1AMTransfer(
             connectedApi,
-            payload.recipientAddress || 'mn_addr_preview1_recurring',
+            payload.recipientAddress,
             BigInt(payload.amountBaseUnits || '1000000')
           )
           if (transferRes && transferRes.tx) {
@@ -95,7 +99,10 @@ export class RecurringContractClient {
     }
 
     const data = await res.json()
-    return { txHash: data.txHash || `mn_tx_recurring_${Date.now()}` }
+    if (!data.txHash) {
+      throw new Error(`Recurring operation '${opName}' completed without valid transaction hash.`)
+    }
+    return { txHash: data.txHash }
   }
 }
 

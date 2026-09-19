@@ -6,6 +6,7 @@ import { escrowClient, formatEscrowStatus } from './client'
 import { CreateEscrowParams, EscrowDetails, EscrowStatus } from './types'
 import { TransactionManager } from '@/transactions/transactionManager'
 import { API_URL } from '@/config'
+import { getAuthHeaders } from '@/lib/auth'
 
 export class EscrowService {
   /**
@@ -203,7 +204,9 @@ export class EscrowService {
    */
   public static async fetchEscrows(walletAddress: string): Promise<EscrowDetails[]> {
     try {
-      const res = await fetch(`${API_URL}/api/escrow/records?walletAddress=${encodeURIComponent(walletAddress)}`)
+      const res = await fetch(`${API_URL}/api/escrow/records?walletAddress=${encodeURIComponent(walletAddress)}`, {
+        headers: getAuthHeaders(),
+      })
       if (res.ok) {
         const records = await res.json()
         if (Array.isArray(records)) {

@@ -338,7 +338,7 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
                   <div className="bg-amber-500/15 border border-amber-500/20 rounded-xl p-3 flex gap-2 text-amber-400 text-xs">
                     <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                     <p className="font-semibold leading-relaxed">
-                      Your Midnight address is not funded on the Preprod ledger yet. Make a test transaction to instantiate.
+                      Your Midnight address is not funded on the Midnight ledger yet. Make a test transaction to instantiate.
                     </p>
                   </div>
                 )}

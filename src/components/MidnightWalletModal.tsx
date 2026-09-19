@@ -75,7 +75,7 @@ export default function MidnightWalletModal() {
             </span>
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-1 rounded-md text-[9px] font-mono font-bold tracking-wider uppercase border border-white/15 text-white/70 bg-white/5">
-                {(process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preview').toUpperCase()} LEDGER
+                MIDNIGHT LEDGER
               </span>
               <button
                 onClick={closeModal}
@@ -309,7 +309,7 @@ export default function MidnightWalletModal() {
 
               {/* Footer */}
               <div className="pt-2 flex justify-between items-center text-[11px] text-white/40">
-                <span>Midnight Target: <b className="text-white/70">{process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preview'}</b></span>
+                <span>Network: <b className="text-white/70">Midnight</b></span>
                 <button
                   onClick={refreshDetection}
                   className="hover:text-white flex items-center gap-1 transition-colors cursor-pointer font-bold"

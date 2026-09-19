@@ -7,37 +7,539 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id               String   @id @default(uuid())
-  full_name        String
-  email            String   @unique
-  password_hash    String
-  wallet_address   String   @unique
-  wallet_connected Boolean  @default(false)
-  email_verified   Boolean  @default(false)
-  profile_picture  String?
-  created_at       DateTime @default(now())
-  updated_at       DateTime @updatedAt
+// ─── ENUMS ────────────────────────────────────────────────────────────────────
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ─── CORE USER & IDENTITY MODELS ─────────────────────────────────────────────
+
+model User {
+  id               String      @id @default(uuid())
+  full_name        String
+  email            String      @unique
+  password_hash    String
+  wallet_address   String      @unique
+  wallet_connected Boolean     @default(false)
+  email_verified   Boolean     @default(false)
+  profile_picture  String?
+  phone_number     String?
+  country_code     String?
+  role             String    @default("USER")
+  status           String  @default("ACTIVE")
+  kyc_tier         String     @default("TIER_0_UNVERIFIED")
+  created_at       DateTime    @default(now())
+  updated_at       DateTime    @updatedAt
+  deleted_at       DateTime?
+
+  // Relations
+  wallets                         Wallet[]
+  did_identities                  DIDIdentity[]
+  compliance_cases                ComplianceCase[]
+  beneficiaries                   Beneficiary[]
+  remittances_sent                Remittance[]       @relation("SentRemittances")
+  remittances_received            Remittance[]       @relation("ReceivedRemittances")
+  payment_methods                 PaymentMethod[]
+  on_ramp_orders                  OnRampOrder[]
+  off_ramp_orders                 OffRampOrder[]
+  audit_logs                      AuditLog[]
+  notifications                   Notification[]
+  payment_links                   PaymentLink[]
+  payment_requests_as_requester   PaymentRequest[]   @relation("RequesterUser")
+  payment_requests_as_recipient   PaymentRequest[]   @relation("RecipientUser")
+  transactions_as_sender          Transaction[]      @relation("SenderTransactions")
+  transactions_as_recipient       Transaction[]      @relation("RecipientTransactions")
+  remittance_quotes               RemittanceQuote[]
+
+  @@index([email])
+  @@index([wallet_address])
+  @@index([status])
   @@map("users")
 }
 
+model Wallet {
+  id                 String         @id @default(uuid())
+  user_id            String
+  user               User           @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  address            String         @unique
+  shielded_address   String?
+  unshielded_address String?
+  provider           String @default("ONE_AM")
+  network            String      @default("PREVIEW")
+  is_primary         Boolean        @default(false)
+  status             String         @default("ACTIVE")
+  last_verified_at   DateTime?
+  created_at         DateTime       @default(now())
+  updated_at         DateTime       @updatedAt
+  deleted_at         DateTime?
+
+  // Relations
+  transfers_sent     BlockchainTransfer[] @relation("SenderWalletTransfers")
+  transfers_received BlockchainTransfer[] @relation("RecipientWalletTransfers")
+
+  @@index([user_id])
+  @@index([address])
+  @@index([network])
+  @@map("wallets")
+}
+
+model DIDIdentity {
+  id                  String   @id @default(uuid())
+  user_id             String
+  user                User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  did                 String   @unique
+  method              String   @default("prism") // prism / identus
+  controller_did      String?
+  status              String   @default("ACTIVE")
+  verification_method String?
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  credentials         VerifiableCredential[]
+  compliance_proofs   ComplianceProof[]
+
+  @@index([user_id])
+  @@index([did])
+  @@map("did_identities")
+}
+
+model VerifiableCredential {
+  id               String           @id @default(uuid())
+  identity_id      String
+  identity         DIDIdentity      @relation(fields: [identity_id], references: [id], onDelete: Cascade)
+  credential_type  String
+  issuer_did       String
+  subject_did      String
+  issuance_date    DateTime
+  expiration_date  DateTime?
+  status           String @default("ISSUED")
+  raw_jwt_vc       String?          
+  claims_json      String           
+  revocation_nonce Int?
+  created_at       DateTime         @default(now())
+  updated_at       DateTime         @updatedAt
+
+  @@index([identity_id])
+  @@index([credential_type])
+  @@index([status])
+  @@map("verifiable_credentials")
+}
+
+// ─── COMPLIANCE & PROOF MODELS ────────────────────────────────────────────────
+
+model ComplianceCase {
+  id                     String           @id @default(uuid())
+  idempotency_key        String?          @unique
+  user_id                String
+  user                   User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  provider               String           @default("FAIRWAY")
+  provider_case_id       String?          @unique
+  status                 String @default("IN_REVIEW")
+  risk_score             Decimal?         
+  screening_notes        String?          
+  aml_check_passed       Boolean          @default(false)
+  pep_check_passed       Boolean          @default(false)
+  sanctions_check_passed Boolean          @default(false)
+  created_at             DateTime         @default(now())
+  updated_at             DateTime         @updatedAt
+
+  compliance_proofs      ComplianceProof[]
+
+  @@index([user_id])
+  @@index([status])
+  @@index([provider_case_id])
+  @@map("compliance_cases")
+}
+
+model ComplianceProof {
+  id                  String         @id @default(uuid())
+  compliance_case_id  String
+  compliance_case     ComplianceCase @relation(fields: [compliance_case_id], references: [id], onDelete: Cascade)
+  identity_id         String?
+  identity            DIDIdentity?   @relation(fields: [identity_id], references: [id])
+  proof_engine        String         @default("TRIPLE_PLAY")
+  zk_proof_hash       String         @unique
+  verification_key_id String
+  public_inputs       String         
+  status              String         @default("VERIFIED")
+  verified_at         DateTime       @default(now())
+  expires_at          DateTime?
+  created_at          DateTime       @default(now())
+  updated_at          DateTime       @updatedAt
+
+  @@index([compliance_case_id])
+  @@index([identity_id])
+  @@map("compliance_proofs")
+}
+
+// ─── REMITTANCE & PAYMENT MODELS ─────────────────────────────────────────────
+
+model Beneficiary {
+  id             String    @id @default(uuid())
+  user_id        String
+  user           User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  full_name      String
+  email          String?
+  phone_number   String?
+  wallet_address String?
+  country_code   String
+  payout_method  String    @default("MIDNIGHT_WALLET")
+  is_verified    Boolean   @default(false)
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+  deleted_at     DateTime?
+
+  remittances    Remittance[]
+
+  @@index([user_id])
+  @@index([wallet_address])
+  @@map("beneficiaries")
+}
+
+model RemittanceQuote {
+  id              String      @id @default(uuid())
+  user_id         String?
+  user            User?       @relation(fields: [user_id], references: [id])
+  from_currency   String
+  to_currency     String
+  from_amount     Decimal     
+  to_amount       Decimal     
+  exchange_rate   Decimal     
+  rate_source     String      @default("ORACLE")
+  rate_timestamp  DateTime    @default(now())
+  provider_fee    Decimal     @default(0) 
+  novapay_fee     Decimal     @default(0) 
+  network_fee     Decimal     @default(0) 
+  fee_amount      Decimal     
+  total_amount    Decimal     @default(0) 
+  rail            String      @default("MIDNIGHT_PREVIEW")
+  status          String      @default("CREATED") // CREATED, LOCKED, EXECUTED, EXPIRED
+  expires_at      DateTime
+  is_accepted     Boolean     @default(false)
+  locked_at       DateTime?
+  executed_at     DateTime?
+  created_at      DateTime    @default(now())
+
+  remittance      Remittance?
+
+  @@index([user_id])
+  @@index([from_currency, to_currency])
+  @@index([expires_at])
+  @@index([status])
+  @@map("remittance_quotes")
+}
+
+model Remittance {
+  id                 String           @id @default(uuid())
+  idempotency_key    String           @unique
+  quote_id           String?          @unique
+  quote              RemittanceQuote? @relation(fields: [quote_id], references: [id])
+  sender_id          String
+  sender             User             @relation("SentRemittances", fields: [sender_id], references: [id])
+  recipient_id       String?
+  recipient          User?            @relation("ReceivedRemittances", fields: [recipient_id], references: [id])
+  beneficiary_id     String?
+  beneficiary        Beneficiary?     @relation(fields: [beneficiary_id], references: [id])
+  sender_amount      Decimal          
+  sender_currency    String
+  recipient_amount   Decimal          
+  recipient_currency String
+  exchange_rate      Decimal          
+  fee_total          Decimal          
+  status             String @default("CREATED")
+  purpose            String
+  settlement_rail    String           @default("MIDNIGHT_PREVIEW")
+  provider_reference String?          @unique
+  created_at         DateTime         @default(now())
+  updated_at         DateTime         @updatedAt
+  deleted_at         DateTime?
+
+  blockchain_transfers   BlockchainTransfer[]
+  fiat_payments          FiatPayment[]
+  fees                   Fee[]
+  reconciliation_records ReconciliationRecord[]
+
+  @@index([sender_id])
+  @@index([recipient_id])
+  @@index([status])
+  @@index([idempotency_key])
+  @@map("remittances")
+}
+
+model PaymentMethod {
+  id             String    @id @default(uuid())
+  user_id        String
+  user           User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  provider       String    @default("ONE_AM")
+  wallet_address String?
+  token_reference String?
+  network        String    @default("PREVIEW")
+  status         String    @default("ACTIVE")
+  is_default     Boolean   @default(false)
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+  deleted_at     DateTime?
+
+  fiat_payments  FiatPayment[]
+
+  @@index([user_id])
+  @@index([wallet_address])
+  @@map("payment_methods")
+}
+
+model OnRampOrder {
+  id                 String        @id @default(uuid())
+  idempotency_key    String        @unique
+  user_id            String
+  user               User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  provider           String @default("WORLDPAY")
+  fiat_amount        Decimal       
+  fiat_currency      String
+  crypto_amount      Decimal       
+  crypto_asset       String        @default("tDUST")
+  destination_wallet String
+  status             String  @default("CREATED")
+  provider_order_id  String?       @unique
+  tx_hash            String?
+  created_at         DateTime      @default(now())
+  updated_at         DateTime      @updatedAt
+  deleted_at         DateTime?
+
+  @@index([user_id])
+  @@index([status])
+  @@index([provider_order_id])
+  @@map("on_ramp_orders")
+}
+
+model OffRampOrder {
+  id                 String        @id @default(uuid())
+  idempotency_key    String        @unique
+  user_id            String
+  user               User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  provider           String @default("MONEYGRAM")
+  crypto_amount      Decimal       
+  crypto_asset       String        @default("tDUST")
+  fiat_amount        Decimal       
+  fiat_currency      String
+  source_wallet      String
+  payout_location_id String?
+  status             String @default("CREATED")
+  provider_order_id  String?       @unique
+  tx_hash            String?
+  created_at         DateTime      @default(now())
+  updated_at         DateTime      @updatedAt
+  deleted_at         DateTime?
+
+  @@index([user_id])
+  @@index([status])
+  @@index([provider_order_id])
+  @@map("off_ramp_orders")
+}
+
+// ─── BLOCKCHAIN & RAILS SETTLEMENT ───────────────────────────────────────────
+
+model BlockchainTransfer {
+  id                   String                   @id @default(uuid())
+  idempotency_key      String?                  @unique
+  remittance_id        String?
+  remittance           Remittance?              @relation(fields: [remittance_id], references: [id])
+  sender_wallet_id     String?
+  sender_wallet_rel    Wallet?                  @relation("SenderWalletTransfers", fields: [sender_wallet_id], references: [id])
+  recipient_wallet_id  String?
+  recipient_wallet_rel Wallet?                  @relation("RecipientWalletTransfers", fields: [recipient_wallet_id], references: [id])
+  sender_wallet        String
+  recipient_wallet     String
+  amount               Decimal                  
+  asset_id             String                   @default("tDUST")
+  tx_hash              String?                  @unique
+  block_height         BigInt?
+  block_timestamp      DateTime?
+  network              String                @default("PREVIEW")
+  contract_address     String?
+  circuit_name         String?
+  status               String @default("PENDING")
+  confirmations        Int                      @default(0)
+  created_at           DateTime                 @default(now())
+  updated_at           DateTime                 @updatedAt
+
+  reconciliation_records ReconciliationRecord[]
+
+  @@index([sender_wallet])
+  @@index([recipient_wallet])
+  @@index([tx_hash])
+  @@index([status])
+  @@map("blockchain_transfers")
+}
+
+model FiatPayment {
+  id                  String            @id @default(uuid())
+  idempotency_key     String            @unique
+  remittance_id       String?
+  remittance          Remittance?       @relation(fields: [remittance_id], references: [id])
+  payment_method_id   String?
+  payment_method      PaymentMethod?    @relation(fields: [payment_method_id], references: [id])
+  provider            String            // WORLDPAY / MONEYGRAM
+  provider_payment_id String?           @unique
+  amount              Decimal           
+  currency            String            // USD / EUR / GBP
+  status              String @default("PENDING")
+  created_at          DateTime          @default(now())
+  updated_at          DateTime          @updatedAt
+  deleted_at          DateTime?
+
+  reconciliation_records ReconciliationRecord[]
+
+  @@index([remittance_id])
+  @@index([provider_payment_id])
+  @@index([status])
+  @@map("fiat_payments")
+}
+
+model ExchangeRate {
+  id              String   @id @default(uuid())
+  base_currency   String
+  target_currency String
+  rate            Decimal  
+  source          String   @default("ORACLE")
+  valid_from      DateTime @default(now())
+  valid_until     DateTime
+  created_at      DateTime @default(now())
+
+  @@index([base_currency, target_currency])
+  @@index([valid_from, valid_until])
+  @@map("exchange_rates")
+}
+
+model Fee {
+  id            String      @id @default(uuid())
+  remittance_id String?
+  remittance    Remittance? @relation(fields: [remittance_id], references: [id])
+  fee_type      String      // NETWORK_FEE, GATEWAY_FEE, COMPLIANCE_FEE, FX_SPREAD
+  amount        Decimal     
+  currency      String
+  charged_to    String      @default("SENDER")
+  created_at    DateTime    @default(now())
+
+  @@index([remittance_id])
+  @@index([fee_type])
+  @@map("fees")
+}
+
+// ─── AUDIT, WEBHOOKS & RECONCILIATION ────────────────────────────────────────
+
+model WebhookEvent {
+  id                String    @id @default(uuid())
+  idempotency_key   String    @unique
+  provider_event_id String?   @unique
+  provider          String    // MONEYGRAM, WORLDPAY, IDENTUS, FAIRWAY
+  event_type        String
+  payload           String    
+  signature         String?
+  timestamp         DateTime?
+  status            String    @default("RECEIVED") // RECEIVED, PROCESSED, DUPLICATE, FAILED
+  retry_count       Int       @default(0)
+  max_retries       Int       @default(3)
+  error_message     String?
+  processed_at      DateTime?
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+
+  @@index([provider, event_type])
+  @@index([provider_event_id])
+  @@index([idempotency_key])
+  @@index([status])
+  @@map("webhook_events")
+}
+
+model AuditLog {
+  id            String   @id @default(uuid())
+  user_id       String?
+  user          User?    @relation(fields: [user_id], references: [id])
+  action        String
+  resource_type String
+  resource_id   String
+  ip_address    String?
+  user_agent    String?
+  metadata      String?  
+  created_at    DateTime @default(now())
+
+  @@index([user_id])
+  @@index([resource_type, resource_id])
+  @@index([action])
+  @@index([created_at])
+  @@map("audit_logs")
+}
+
+model ReconciliationRecord {
+  id                     String              @id @default(uuid())
+  remittance_id          String?
+  remittance             Remittance?         @relation(fields: [remittance_id], references: [id])
+  blockchain_transfer_id String?
+  blockchain_transfer    BlockchainTransfer? @relation(fields: [blockchain_transfer_id], references: [id])
+  fiat_payment_id        String?
+  fiat_payment           FiatPayment?        @relation(fields: [fiat_payment_id], references: [id])
+  expected_amount        Decimal             
+  actual_amount          Decimal             
+  discrepancy            Decimal             @default(0) 
+  db_state               String?
+  provider_state         String?
+  blockchain_state       String?
+  exception_type         String?
+  status                 String              @default("MATCHED") // MATCHED, DISCREPANCY, RECONCILIATION_EXCEPTION, MANUAL_REVIEW, RESOLVED
+  retry_count            Int                 @default(0)
+  max_retries            Int                 @default(3)
+  queued_for_review      Boolean             @default(false)
+  reconciled_at          DateTime            @default(now())
+  resolved_at            DateTime?
+  notes                  String?             
+  created_at             DateTime            @default(now())
+  updated_at             DateTime            @updatedAt
+
+  @@index([remittance_id])
+  @@index([status])
+  @@index([queued_for_review])
+  @@map("reconciliation_records")
+}
+
+// ─── LEGACY COMPATIBILITY MODELS (PRESERVED & UPGRADED TO DECIMAL) ────────────
+
 model Transaction {
-  id               String   @id @default(uuid())
+  id               String    @id @default(uuid())
+  sender_id        String?
+  sender           User?     @relation("SenderTransactions", fields: [sender_id], references: [id])
+  recipient_id     String?
+  recipient        User?     @relation("RecipientTransactions", fields: [recipient_id], references: [id])
   sender_wallet    String
   recipient_wallet String
-  amount           Float
-  asset_type       String   @default("tDUST")
+  amount           Decimal   
+  asset_type       String    @default("tDUST")
   purpose          String
-  tx_hash          String?  @unique
-  status           String   @default("PENDING") // PENDING, SUCCESS, FAILED
-  created_at       DateTime @default(now())
+  tx_hash          String?   @unique
+  status           String    @default("PENDING") // PENDING, SUCCESS, FAILED
+  created_at       DateTime  @default(now())
+  deleted_at       DateTime?
 
+  @@index([sender_wallet])
+  @@index([recipient_wallet])
+  @@index([status])
+  @@index([tx_hash])
   @@map("transactions")
 }
 
 model Notification {
   id             String   @id @default(uuid())
+  user_id        String?
+  user           User?    @relation(fields: [user_id], references: [id], onDelete: Cascade)
   wallet_address String
   title          String
   message        String
@@ -45,79 +547,89 @@ model Notification {
   is_read        Boolean  @default(false)
   created_at     DateTime @default(now())
 
+  @@index([wallet_address])
+  @@index([user_id])
   @@map("notifications")
 }
 
 model PaymentRequest {
-  id               String   @id @default(uuid())
+  id               String    @id @default(uuid())
+  requester_id     String?
+  requester        User?     @relation("RequesterUser", fields: [requester_id], references: [id])
+  recipient_id     String?
+  recipient        User?     @relation("RecipientUser", fields: [recipient_id], references: [id])
   requester_wallet String
   recipient_wallet String
-  amount           Float
-  asset            String   @default("tDUST")
+  amount           Decimal   
+  asset            String    @default("tDUST")
   purpose          String
   message          String?
-  status           String   @default("PENDING") // PENDING, COMPLETED, DECLINED, EXPIRED
-  transaction_hash String?  @unique
-  created_at       DateTime @default(now())
-  updated_at       DateTime @updatedAt
+  status           String    @default("PENDING") // PENDING, COMPLETED, DECLINED, EXPIRED
+  transaction_hash String?   @unique
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+  deleted_at       DateTime?
 
+  @@index([requester_wallet])
+  @@index([recipient_wallet])
+  @@index([status])
   @@map("payment_requests")
 }
 
-model PaymentMethod {
-  id             String   @id @default(uuid())
-  user_id        String
-  provider       String   @default("LACE_MIDNIGHT") // LACE_MIDNIGHT, IAM_MIDNIGHT
-  wallet_address String   @unique
-  network        String   @default("PREPROD") // PREPROD, PREVIEW, TESTNET
-  status         String   @default("ACTIVE")
-  is_default     Boolean  @default(false)
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
-
-  @@map("payment_methods")
-}
-
 model PaymentLink {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
+  creator_id     String?
+  creator        User?     @relation(fields: [creator_id], references: [id])
   creator_wallet String
-  amount         Float
-  asset          String   @default("tDUST")
-  status         String   @default("ACTIVE")
-  created_at     DateTime @default(now())
+  amount         Decimal   
+  asset          String    @default("tDUST")
+  status         String    @default("ACTIVE")
+  created_at     DateTime  @default(now())
+  deleted_at     DateTime?
 
+  @@index([creator_wallet])
+  @@index([status])
   @@map("payment_links")
 }
 
 model EscrowRecord {
-  id         String   @id
+  id         String    @id
   payer      String
   payee      String
   arbiter    String
-  amount     Float
-  status     Int      @default(0)
+  amount     Decimal   
+  status     Int       @default(0)
   tx_hash    String?
   deadline   Int
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+  deleted_at DateTime?
 
+  @@index([payer])
+  @@index([payee])
+  @@index([arbiter])
+  @@index([status])
   @@map("escrow_records")
 }
 
 model SubscriptionRecord {
-  id                String   @id
+  id                String    @id
   payer             String
   recipient         String
-  amount            Float
+  amount            Decimal   
   frequency_seconds Int
   next_payment_time Int
   end_time          Int
-  max_payments      Int      @default(0)
-  payment_count     Int      @default(0)
-  status            Int      @default(1)
+  max_payments      Int       @default(0)
+  payment_count     Int       @default(0)
+  status            Int       @default(1)
   tx_hash           String?
-  created_at        DateTime @default(now())
-  updated_at        DateTime @updatedAt
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+  deleted_at        DateTime?
 
+  @@index([payer])
+  @@index([recipient])
+  @@index([status])
   @@map("subscription_records")
 }

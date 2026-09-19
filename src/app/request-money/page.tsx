@@ -5,11 +5,7 @@ import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import { API_URL, getExplorerTxUrl } from '@/config'
-const signTransaction = async (xdr: string, _opts?: any) => {
-  return { signedTxXdr: xdr }
-}
 import { getRaw1AMProvider, getConnectedAPI, execute1AMTransfer } from '@/lib/midnight-wallet'
-import { recurringInitialize, recurringCharge, xlmToStroops, NATIVE_TOKEN_TESTNET } from '@/lib/contract'
 import {
   Share2,
   QrCode,
@@ -51,16 +47,17 @@ import { useMidnightWallet } from '@/context/MidnightWalletContext'
 
 export default function RequestMoneyPage() {
   const router = useRouter()
-  const user: any = null
-  const token = null
-  const { wallet, isConnected, isConnecting, connect } = useMidnightWallet()
+  const { wallet, isConnected, isConnecting, connect, authToken, authUser, balance, network, fetchBalance } = useMidnightWallet()
+  const user = authUser
+  const token = authToken
   const publicKey = wallet?.address || null
-  const isUserAuthenticated = true
+  const isUserAuthenticated = Boolean(isConnected && authToken)
+  const isNetworkMismatch = isConnected && network ? !network.toLowerCase().includes('preview') : false
 
   // Form states
   const [recipientWallet, setRecipientWallet] = useState('')
   const [amount, setAmount] = useState('')
-  const [asset, setAsset] = useState('USDC')
+  const [asset, setAsset] = useState('tDUST')
   const [purpose, setPurpose] = useState('Services')
   const [message, setMessage] = useState('')
 
@@ -81,8 +78,6 @@ export default function RequestMoneyPage() {
   const [payStep, setPayStep] = useState(0)
   const [payError, setPayError] = useState<string | null>(null)
   const [successTxHash, setSuccessTxHash] = useState<string | null>(null)
-  const [isEstablishingTrustline, setIsEstablishingTrustline] = useState(false)
-  const [trustlineSuccess, setTrustlineSuccess] = useState(false)
 
   // Decline execution states
   const [decliningId, setDecliningId] = useState<string | null>(null)
@@ -90,42 +85,27 @@ export default function RequestMoneyPage() {
   // Receipt Modal State
   const [selectedReceipt, setSelectedReceipt] = useState<PaymentRequest | null>(null)
 
-  // Wallet Balance states for validation
-  const [midnightBalance, setMidnightBalance] = useState<string>('1,250.00')
-  const [usdcBalance, setUsdcBalance] = useState<string>('500.00')
-  const [isNotFunded, setIsNotFunded] = useState(false)
-  const [hasUsdcTrustline, setHasUsdcTrustline] = useState(false)
-
-  const fetchBalances = async (address: string) => {
-    try {
-      const storedNative = localStorage.getItem(`novapay_balance_${address}`) || '1250.00'
-      setMidnightBalance(storedNative)
-      setUsdcBalance('500.00')
-      setHasUsdcTrustline(true)
-      setIsNotFunded(false)
-    } catch (err: any) {
-      setMidnightBalance('1,250.00')
-      setUsdcBalance('0.00')
-      setHasUsdcTrustline(true)
-    }
-  }
-
   useEffect(() => {
     if (publicKey) {
-      fetchBalances(publicKey)
+      fetchBalance()
     }
-    fetchRequests()
-  }, [publicKey])
+    if (token) {
+      fetchRequests()
+    } else {
+      setRequests([])
+    }
+  }, [publicKey, token])
 
   // Fetch requests list
   const fetchRequests = async () => {
+    if (!token) return
     setIsLoadingRequests(true)
     try {
       const url = publicKey
         ? `${API_URL}/api/payment-requests?walletAddress=${encodeURIComponent(publicKey)}`
         : `${API_URL}/api/payment-requests`
       const res = await fetch(url, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
+        headers: { Authorization: `Bearer ${token}` }
       })
       const data = await res.json()
       if (res.ok && Array.isArray(data)) {
@@ -139,10 +119,6 @@ export default function RequestMoneyPage() {
       setIsLoadingRequests(false)
     }
   }
-
-  useEffect(() => {
-    fetchRequests()
-  }, [publicKey])
 
   // Validate address input format
   const handleValidateAddress = (address: string) => {
@@ -243,25 +219,19 @@ export default function RequestMoneyPage() {
   // Pay Request Consensus Workflow
   const handlePayRequest = async (req: PaymentRequest) => {
     if (!publicKey) {
-      alert('Connect your wallet first.')
+      alert('Connect your Midnight wallet first.')
       return
     }
 
     try {
       const isUSDC = req.asset === 'USDC'
-      const storedVal = localStorage.getItem(`novapay_balance_${publicKey}`) || '1250.00'
-      const balanceVal = isUSDC ? 500.00 : parseFloat(storedVal)
+      const available = isUSDC ? parseFloat(balance?.usdc || '0') : parseFloat(balance?.tDust || '0')
 
-      if (balanceVal < req.amount) {
-        alert(`Insufficient balance. You need ${req.amount} ${req.asset}, but you only have ${balanceVal} ${req.asset}.`)
+      if (available < req.amount) {
+        alert(`Insufficient balance. You need ${req.amount} ${req.asset}, but your verified balance on Midnight is ${available.toFixed(2)} ${req.asset}.`)
         return
       }
     } catch (err: any) {
-      const is404 = err.status === 404 || (err.response && err.response.status === 404)
-      if (is404) {
-        alert('Your Midnight address is not funded on Preprod. Fund your account via faucet first.')
-        return
-      }
       console.error('Error verifying balances:', err)
     }
 
@@ -279,8 +249,7 @@ export default function RequestMoneyPage() {
         throw new Error('1AM Wallet extension not detected in your browser. Please ensure 1AM extension is installed.')
       }
 
-      const networkId = process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preview'
-      const connectedApi = await getConnectedAPI(raw1AM, networkId)
+      const connectedApi = await getConnectedAPI(raw1AM, 'preview')
       if (!connectedApi) {
         throw new Error('Failed to establish session with 1AM Wallet. Please unlock your 1AM extension.')
       }
@@ -308,7 +277,6 @@ export default function RequestMoneyPage() {
           Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          xdr: Buffer.from(JSON.stringify({ requester: req.requester_wallet, amount: req.amount, txHash: canonicalTxHash })).toString('base64'),
           txHash: canonicalTxHash,
           payerWallet: publicKey,
           senderAddress: publicKey
@@ -329,63 +297,6 @@ export default function RequestMoneyPage() {
       setIsPaying(false)
       setPayingRequest(null)
       setPayStep(0)
-    }
-  }
-
-  const handleEstablishTrustline = async () => {
-    if (!token) return
-    setIsEstablishingTrustline(true)
-    setPayError(null)
-    try {
-      // Step 1: Prepare changeTrust transaction XDR
-      const prepareRes = await fetch(`${API_URL}/wallet/trustline/usdc/prepare`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      const prepareData = await prepareRes.json()
-      if (!prepareRes.ok) {
-        throw new Error(prepareData.error || 'Failed to prepare trustline transaction.')
-      }
-
-      // Step 2: Request Freighter Signature
-      const signedXdr = await signTransaction(prepareData.xdr, {
-        networkPassphrase: 'Test SDF Network ; September 2015'
-      })
-      if (typeof signedXdr === 'object' && (signedXdr as any).error) {
-        const errObj = (signedXdr as any).error
-        throw new Error(typeof errObj === 'string' ? errObj : errObj.message || 'User rejected request or signing failed')
-      }
-      const finalXdr = typeof signedXdr === 'string' ? signedXdr : (signedXdr as any).signedTxXdr
-
-      // Step 3: Submit transaction to Midnight network
-      const submitRes = await fetch(`${API_URL}/wallet/trustline/usdc/submit`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ xdr: finalXdr })
-      })
-      const submitData = await submitRes.json()
-      if (!submitRes.ok) {
-        throw new Error(submitData.error || 'Midnight transaction submission rejected.')
-      }
-
-      setTrustlineSuccess(true)
-      alert("USDC Trustline established successfully! You can now pay the request.")
-      
-      // If we have a paying request active, automatically re-trigger pay flow
-      if (payingRequest) {
-        handlePayRequest(payingRequest)
-      }
-    } catch (err: any) {
-      console.error(err)
-      setPayError(err.message || 'Failed to establish USDC trustline.')
-    } finally {
-      setIsEstablishingTrustline(false)
     }
   }
 
@@ -479,11 +390,26 @@ export default function RequestMoneyPage() {
       <main className="flex-1 max-w-7xl mx-auto w-full px-6 pt-32 pb-16 relative z-10">
         {/* Title */}
         <div className="mb-10 text-center sm:text-left">
-          <h1 className="text-3xl font-extrabold tracking-tight font-sans">Request Money</h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-extrabold tracking-tight font-sans">Request Money</h1>
+            <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+              MIDNIGHT NETWORK
+            </span>
+          </div>
           <p className="text-sm text-black/50 mt-1 font-medium font-sans">
-            Ask for funds or manage invoices. Requesters will receive payments directly on their connected wallets.
+            Ask for funds or manage invoices. Requesters will receive payments directly on their connected Midnight wallets.
           </p>
         </div>
+
+        {isNetworkMismatch && (
+          <div className="mb-8 p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center gap-3 text-amber-500 text-xs">
+            <AlertTriangle className="w-5 h-5 shrink-0" />
+            <div>
+              <p className="font-bold">Network Mismatch Warning</p>
+              <p className="text-amber-500/80">Your connected wallet is set to &ldquo;{network}&rdquo;. NovaPay operates on Midnight.</p>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
           {/* Left panel: Create Payment Request Form */}
@@ -516,7 +442,7 @@ export default function RequestMoneyPage() {
                       setIsValidAddress(null)
                     }}
                     onBlur={() => handleValidateAddress(recipientWallet)}
-                    placeholder="G..."
+                    placeholder="mn_addr_test... or 0x..."
                     className={`w-full px-4 py-2.5 bg-white/[0.02] border rounded-xl text-xs text-white font-mono placeholder-white/20 focus:outline-none transition-all ${
                       isValidAddress === true
                         ? 'border-emerald-500/40 focus:border-emerald-500/60'
@@ -1003,31 +929,13 @@ export default function RequestMoneyPage() {
             </p>
 
             <div className="flex justify-end pt-5 gap-3">
-              {payError.includes("USDC trustline is not established") && (
-                <button
-                  type="button"
-                  disabled={isEstablishingTrustline}
-                  onClick={handleEstablishTrustline}
-                  className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-500/20 text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
-                >
-                  {isEstablishingTrustline ? (
-                    <>
-                      <Loader2 size={12} className="animate-spin" />
-                      <span>Establishing...</span>
-                    </>
-                  ) : (
-                    <span>Establish USDC Trustline</span>
-                  )}
-                </button>
-              )}
               <button
                 type="button"
-                disabled={isEstablishingTrustline}
                 onClick={() => {
                   setPayError(null)
                   setPayingRequest(null)
                 }}
-                className="px-5 py-2.5 bg-white text-black font-bold text-xs rounded-xl hover:bg-white/95 transition-all cursor-pointer disabled:opacity-50"
+                className="px-5 py-2.5 bg-white text-black font-bold text-xs rounded-xl hover:bg-white/95 transition-all cursor-pointer"
               >
                 Close
               </button>

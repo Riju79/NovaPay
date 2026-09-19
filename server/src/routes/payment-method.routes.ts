@@ -5,13 +5,16 @@ import {
   setDefaultPaymentMethod,
   getWalletBalances
 } from '../controllers/payment-method.controller'
+import { authenticateToken } from '../middleware/auth'
 
 const router = Router()
 
-// All routes protected by authenticateToken in index.ts
-router.get('/', getPaymentMethods)
-router.post('/', createPaymentMethod)
-router.patch('/:id/default', setDefaultPaymentMethod)
-router.get('/balances', getWalletBalances)
+// All routes protected by authenticateToken
+router.use(authenticateToken as any)
+
+router.get('/', getPaymentMethods as any)
+router.post('/', createPaymentMethod as any)
+router.patch('/:id/default', setDefaultPaymentMethod as any)
+router.get('/balances', getWalletBalances as any)
 
 export default router

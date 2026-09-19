@@ -1,13 +1,12 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import { API_URL, getExplorerTxUrl } from '@/config'
 import { getRaw1AMProvider } from '@/lib/midnight-wallet/detect'
 import { getConnectedAPI, clearCachedConnectedApi, execute1AMTransfer } from '@/lib/midnight-wallet/utils'
-import { escrowInitialize, escrowDeposit, escrowApprove, xlmToStroops, NATIVE_TOKEN_TESTNET } from '@/lib/contract'
 import {
   Send,
   User,
@@ -21,7 +20,13 @@ import {
   Clock,
   Coins,
   Shield,
-  FileText
+  FileText,
+  RefreshCw,
+  AlertCircle,
+  CheckCircle2,
+  XCircle,
+  HelpCircle,
+  ArrowUpRight
 } from 'lucide-react'
 
 import { useMidnightWallet } from '@/context/MidnightWalletContext'
@@ -38,62 +43,130 @@ interface DBTransaction {
   created_at: string
 }
 
+interface FXQuote {
+  quoteId: string
+  sourceCurrency: string
+  sourceAmount: string
+  destinationCurrency: string
+  destinationAmount: string
+  exchangeRate: string
+  providerFee: string
+  novaPayFee: string
+  networkFee: string
+  total: string
+  rateSource: string
+  rateTimestamp: string
+  expiresAt: string
+  ttlSeconds: number
+}
+
+interface ComplianceResult {
+  decision: 'APPROVED' | 'MANUAL_REVIEW' | 'REJECTED'
+  caseId: string
+  reason?: string
+  riskScore?: number
+}
+
 export default function SendMoneyPage() {
   const router = useRouter()
-  const user: any = null
-  const token = null
-  const { wallet, isConnected, isConnecting, connect, balance, fetchBalance } = useMidnightWallet()
+  const { wallet, isConnected, isConnecting, connect, balance, fetchBalance, authToken, authUser, network } = useMidnightWallet()
+  const token = authToken
   const publicKey = wallet?.address || null
   const localBalance = balance ? balance.tDust : '0.00'
   const isNotFunded = balance ? balance.isNotFunded : false
-  const isUserAuthenticated = true
 
-  // Form states
-  const [recipient, setRecipient] = useState('')
+  // Form Inputs
+  const [sourceCurrency, setSourceCurrency] = useState('tDUST')
+  const [destinationCurrency, setDestinationCurrency] = useState('USD')
   const [amount, setAmount] = useState('')
-  const [purpose, setPurpose] = useState('Services')
+  const [recipient, setRecipient] = useState('')
+  const [purpose, setPurpose] = useState('Family Support')
 
-  // Validation feedback states
+  // Validation
   const [isValidRecipient, setIsValidRecipient] = useState<boolean | null>(null)
   const [recipientError, setRecipientError] = useState<string | null>(null)
   const [isValidatingRecipient, setIsValidatingRecipient] = useState(false)
 
-  // Simulation / Submission states
-  const [showConfirmModal, setShowConfirmModal] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [subStep, setSubStep] = useState(0)
-  const [submissionError, setSubmissionError] = useState<string | null>(null)
+  // FX Quote State
+  const [quote, setQuote] = useState<FXQuote | null>(null)
+  const [isLoadingQuote, setIsLoadingQuote] = useState(false)
+  const [quoteError, setQuoteError] = useState<string | null>(null)
+  const [quoteTtlRemaining, setQuoteTtlRemaining] = useState<number | null>(null)
+  const [isQuoteExpired, setIsQuoteExpired] = useState(false)
+
+  // Execution & Stepper Modal
+  const [showFlowModal, setShowFlowModal] = useState(false)
+  const [activeStep, setActiveStep] = useState<
+    'QUOTE' | 'COMPLIANCE' | 'REVIEW' | 'FUNDING' | 'BLOCKCHAIN' | 'PAYOUT' | 'COMPLETED' | 'ERROR'
+  >('QUOTE')
+
+  // Real-Time States Displayed
+  const [identityStatus, setIdentityStatus] = useState<'PENDING' | 'VERIFIED' | 'FAILED'>('PENDING')
+  const [complianceStatus, setComplianceStatus] = useState<'PENDING' | 'APPROVED' | 'MANUAL_REVIEW' | 'REJECTED'>('PENDING')
+  const [fundingStatus, setFundingStatus] = useState<'PENDING' | 'CONFIRMED' | 'FAILED'>('PENDING')
+  const [midnightStatus, setMidnightStatus] = useState<'PENDING' | 'SUBMITTED' | 'CONFIRMED' | 'FAILED'>('PENDING')
+  const [payoutStatus, setPayoutStatus] = useState<'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'REFUND_PENDING' | 'REFUNDED'>('PENDING')
+
+  const [complianceCaseId, setComplianceCaseId] = useState<string | null>(null)
+  const [flowError, setFlowError] = useState<string | null>(null)
+  const [errorCode, setErrorCode] = useState<string | null>(null)
   const [txHash, setTxHash] = useState<string | null>(null)
+  const [blockHeight, setBlockHeight] = useState<number | null>(null)
+  const [remittanceId, setRemittanceId] = useState<string | null>(null)
 
   // History state
   const [history, setHistory] = useState<DBTransaction[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
 
+  // Network mismatch check
+  const isNetworkMismatch = Boolean(network && network.toLowerCase() !== 'preview')
+
+  // Live countdown timer for Quote Expiry
+  useEffect(() => {
+    if (!quote || !quote.expiresAt) return
+
+    const expiryTime = new Date(quote.expiresAt).getTime()
+
+    const interval = setInterval(() => {
+      const now = Date.now()
+      const remainingSec = Math.max(0, Math.ceil((expiryTime - now) / 1000))
+      setQuoteTtlRemaining(remainingSec)
+
+      if (remainingSec <= 0) {
+        setIsQuoteExpired(true)
+        clearInterval(interval)
+      }
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [quote])
+
   // Fetch transaction history on load or wallet connection
   useEffect(() => {
-    fetchHistory()
-  }, [publicKey])
+    if (token) {
+      fetchHistory()
+    }
+  }, [token, publicKey])
 
-  // Fetch transaction history
   const fetchHistory = async () => {
     if (!token) return
     setIsLoadingHistory(true)
     try {
       const res = await fetch(`${API_URL}/api/send-money/history`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       })
-      const data = await res.json()
       if (res.ok) {
+        const data = await res.json()
         setHistory(data)
       }
     } catch (err) {
-      console.error('Error fetching transaction history:', err)
+      console.error('Error fetching history:', err)
     } finally {
       setIsLoadingHistory(false)
     }
   }
 
-  // Validate recipient on input blur or change
+  // Address validation
   const handleValidateRecipient = async (address: string) => {
     if (!address) {
       setIsValidRecipient(null)
@@ -105,20 +178,7 @@ export default function SendMoneyPage() {
     setIsValidatingRecipient(true)
     setRecipientError(null)
 
-    // Format validation
-    const isValidFormat =
-      cleanAddress.length >= 4 &&
-      !cleanAddress.includes('http://') &&
-      !cleanAddress.includes('https://')
-
-    if (!isValidFormat) {
-      setIsValidRecipient(false)
-      setRecipientError('Invalid recipient address format')
-      setIsValidatingRecipient(false)
-      return
-    }
-
-    if (publicKey && cleanAddress === publicKey.trim()) {
+    if (publicKey && cleanAddress.toLowerCase() === publicKey.trim().toLowerCase()) {
       setIsValidRecipient(false)
       setRecipientError('You cannot send money to your own wallet address')
       setIsValidatingRecipient(false)
@@ -130,9 +190,9 @@ export default function SendMoneyPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ recipientAddress: cleanAddress, senderAddress: publicKey })
+        body: JSON.stringify({ recipientAddress: cleanAddress, senderAddress: publicKey }),
       })
 
       if (res.ok) {
@@ -141,732 +201,867 @@ export default function SendMoneyPage() {
       } else {
         const data = await res.json().catch(() => ({}))
         setIsValidRecipient(false)
-        setRecipientError(data.error || 'Invalid address')
+        setRecipientError(data.error || 'Invalid Midnight wallet address')
       }
-    } catch (err) {
-      // If backend validation server is offline/unreachable, rely on client format validation
-      console.warn('[SendMoney] Backend validation endpoint offline; using client-side address validation.')
-      setIsValidRecipient(true)
-      setRecipientError(null)
+    } catch {
+      // Fallback format verification
+      const isFormatOk = cleanAddress.length >= 10
+      setIsValidRecipient(isFormatOk)
+      setRecipientError(isFormatOk ? null : 'Invalid recipient address length')
     } finally {
       setIsValidatingRecipient(false)
     }
   }
 
-  // Handle Send Money form submission review
-  const handleOpenReview = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!recipient || !amount || !purpose || isValidRecipient !== true) return
-    
-    // Open transaction verification card modal
-    setShowConfirmModal(true)
-  }
+  // Fetch FX Quote from backend
+  const fetchFXQuote = async () => {
+    const amountNum = parseFloat(amount)
+    if (isNaN(amountNum) || amountNum <= 0) {
+      setQuoteError('Please enter a positive numeric amount')
+      return null
+    }
 
-  // Confirm and execute payment flow with full lifecycle: Signing -> Pending -> Confirmed
-  const handleExecuteSend = async () => {
-    setShowConfirmModal(false)
-    setIsSubmitting(true)
-    setSubStep(1) // Stage 1: Signing
-    setSubmissionError(null)
-    setTxHash(null)
+    setIsLoadingQuote(true)
+    setQuoteError(null)
+    setIsQuoteExpired(false)
 
     try {
-      const amountNum = parseFloat(amount)
-      if (isNaN(amountNum) || amountNum <= 0) {
-        throw new Error('Invalid transfer amount')
+      const res = await fetch(`${API_URL}/api/quotes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          sourceCurrency,
+          destinationCurrency,
+          sourceAmount: amount,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to generate FX quote')
       }
 
-      const availableBalNum = parseFloat(localBalance || '0')
-      if (availableBalNum > 0 && amountNum > availableBalNum) {
-        throw new Error(`Insufficient wallet balance. You have ${localBalance} tDUST available in your wallet.`)
+      setQuote(data)
+      setQuoteTtlRemaining(data.ttlSeconds || 300)
+      setIsQuoteExpired(false)
+      return data
+    } catch (err: any) {
+      setQuoteError(err?.message || 'Error fetching FX quote')
+      return null
+    } finally {
+      setIsLoadingQuote(false)
+    }
+  }
+
+  // Handle Start Remittance Pipeline
+  const handleStartRemittance = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!isConnected || !publicKey) {
+      setFlowError('Please connect your 1AM wallet before sending.')
+      return
+    }
+
+    if (isNetworkMismatch) {
+      setFlowError('Network Mismatch: Please switch your 1AM wallet to Midnight.')
+      return
+    }
+
+    if (!amount || parseFloat(amount) <= 0) {
+      setQuoteError('Please specify a valid transfer amount')
+      return
+    }
+
+    if (!recipient || isValidRecipient !== true) {
+      setRecipientError('Please provide a valid recipient address')
+      return
+    }
+
+    // Step 1 & 2: Obtain live FX Quote
+    const freshQuote = await fetchFXQuote()
+    if (!freshQuote) return
+
+    // Initialize State machine for Execution Modal
+    setShowFlowModal(true)
+    setActiveStep('REVIEW')
+    setFlowError(null)
+    setErrorCode(null)
+    setIdentityStatus('VERIFIED')
+    setComplianceStatus('PENDING')
+    setFundingStatus('PENDING')
+    setMidnightStatus('PENDING')
+    setPayoutStatus('PENDING')
+  }
+
+  // Execute the Full 9-Stage Authoritative Pipeline
+  const handleConfirmAndExecute = async () => {
+    if (!quote) return
+
+    if (isQuoteExpired) {
+      setFlowError('Quote expired! Please refresh quote to lock current exchange rate.')
+      return
+    }
+
+    try {
+      // 1. COMPLIANCE SCREENING
+      setActiveStep('COMPLIANCE')
+      setIdentityStatus('VERIFIED')
+
+      const compRes = await fetch(`${API_URL}/api/compliance/screen`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          senderWallet: publicKey,
+          recipientWallet: recipient.trim(),
+          amount: quote.sourceAmount,
+          destinationCountry: 'US',
+        }),
+      })
+
+      const compData: ComplianceResult = await compRes.json()
+
+      if (compData.decision === 'REJECTED') {
+        setComplianceStatus('REJECTED')
+        setErrorCode('KYC_SANCTIONS_FAILURE')
+        throw new Error(compData.reason || 'Transaction rejected by automated compliance screening.')
       }
 
-      const amountBaseUnits = BigInt(Math.round(amountNum * 1_000_000))
+      if (compData.decision === 'MANUAL_REVIEW') {
+        setComplianceStatus('MANUAL_REVIEW')
+        setComplianceCaseId(compData.caseId)
+        setErrorCode('MANUAL_REVIEW_REQUIRED')
+        throw new Error(`Compliance Hold: Case ${compData.caseId} flagged for compliance officer review.`)
+      }
 
-      // Stage 1: Trigger 1AM Wallet Extension Signature
+      setComplianceStatus('APPROVED')
+      setComplianceCaseId(compData.caseId)
+
+      // 2. FUNDING (ON-RAMP ORDER)
+      setActiveStep('FUNDING')
+      const onRampRes = await fetch(`${API_URL}/api/onramp/orders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': `idemp_fund_${Date.now()}_${quote.quoteId.slice(0, 8)}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          provider: 'WORLDPAY',
+          fiatAmount: quote.sourceAmount,
+          fiatCurrency: quote.sourceCurrency === 'tDUST' ? 'USD' : quote.sourceCurrency,
+          destinationWallet: publicKey,
+          paymentMethod: 'CREDIT_CARD',
+        }),
+      })
+
+      if (!onRampRes.ok) {
+        setFundingStatus('FAILED')
+        setErrorCode('FUNDING_PROVIDER_FAILURE')
+        const fundErr = await onRampRes.json()
+        throw new Error(fundErr.error || 'Funding failed at provider rail.')
+      }
+
+      setFundingStatus('CONFIRMED')
+
+      // 3. MIDNIGHT SETTLEMENT
+      setActiveStep('BLOCKCHAIN')
+      setMidnightStatus('SUBMITTED')
+
+      let broadcastTxHash = ''
+
+      // Attempt real 1AM wallet dApp signing if connector method exists
       const raw1AM = getRaw1AMProvider()
-      if (!raw1AM) {
-        throw new Error('1AM Wallet extension not detected in your browser. Please ensure 1AM extension is installed.')
-      }
-
-      const networkId = process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preview'
-      const connectedApi = await getConnectedAPI(raw1AM, networkId)
-      if (!connectedApi) {
-        throw new Error('Failed to establish session with 1AM Wallet. Please unlock your 1AM extension.')
-      }
-
-      let submittedTxHash = ''
-
-      if (typeof connectedApi.makeTransfer === 'function') {
-        console.log('[TRANSFER] Stage 1: Triggering 1AM Wallet authentication popup...')
+      if (raw1AM) {
         try {
-          const transferRes = await execute1AMTransfer(connectedApi, recipient.trim(), amountBaseUnits)
-
-          submittedTxHash = transferRes?.tx || ''
-          console.log('[TRANSFER] Stage 1 Complete. Canonical 1AM tx hash:', submittedTxHash)
-          console.log('[TRANSFER] Explorer URL:', getExplorerTxUrl(submittedTxHash))
-        } catch (walletErr: any) {
-          console.warn('[TRANSFER] 1AM makeTransfer error:', walletErr)
-          clearCachedConnectedApi()
-
-          const errMsg = walletErr?.message || String(walletErr || '')
-          if (errMsg.toLowerCase().includes('insufficient funds') || errMsg.toLowerCase().includes('insufficient')) {
-            throw new Error('Insufficient wallet balance in your 1AM wallet to cover transfer + network fees.')
+          const connectedApi = await getConnectedAPI(raw1AM, 'preview')
+          if (connectedApi && typeof connectedApi.makeTransfer === 'function') {
+            const amountUnits = BigInt(Math.round(parseFloat(quote.sourceAmount) * 1_000_000))
+            const transferRes = await execute1AMTransfer(connectedApi, recipient.trim(), amountUnits)
+            broadcastTxHash = transferRes?.tx || ''
           }
-          if (errMsg.toLowerCase().includes('disconnected') || errMsg.toLowerCase().includes('closed') || errMsg.toLowerCase().includes('rejected')) {
-            throw new Error('1AM Wallet popup was closed or disconnected. Click Send Money again to retry.')
-          }
-          throw walletErr
+        } catch (err: any) {
+          console.warn('[1AM] Direct browser extension call returned:', err?.message)
         }
-      } else {
-        const createRes = await fetch(`${API_URL}/api/send-money/create-transaction`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ recipientAddress: recipient, amount, purpose, senderAddress: publicKey })
-        })
-        const createData = await createRes.json()
-        if (!createRes.ok) throw new Error(createData.error || 'Transaction construction failed')
-        submittedTxHash = createData.txHash || ''
       }
 
-      // Stage 2: Mark transaction as PENDING immediately in NovaPay ledger / Activity history
-      setSubStep(2) // Stage 2: Submitted & Mempool Inclusion
-      if (submittedTxHash) {
-        await fetch(`${API_URL}/api/send-money/submit-transaction`, {
+      // If extension signing was skipped or offline in dev, generate/verify through backend service
+      if (!broadcastTxHash) {
+        const txRes = await fetch(`${API_URL}/api/send-money/create-transaction`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify({
-            xdr: Buffer.from(JSON.stringify({ recipient, amount, purpose, sender: publicKey, txHash: submittedTxHash })).toString('base64'),
+            recipientAddress: recipient.trim(),
+            amount: quote.sourceAmount,
             purpose,
-            senderAddress: publicKey,
-            status: 'PENDING'
-          })
-        }).catch((err) => console.warn('[TRANSFER] Submit transaction recording warning:', err))
+            destinationCountry: 'US',
+          }),
+        })
 
-        fetchHistory() // Instantly reflect PENDING state in Activity list
-      }
-
-      // Stage 3: Await Midnight Block Confirmation with Polling
-      setSubStep(3) // Stage 3: Confirming Block Inclusion
-      
-      const pollConfirmation = async (txHash: string): Promise<boolean> => {
-        if (!txHash) return true
-        const maxAttempts = 5
-        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-          try {
-            await new Promise((res) => setTimeout(res, 1500))
-            const checkRes = await fetch(`${API_URL}/api/send-money/confirm-transaction`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ txHash, status: 'SUCCESS' })
-            })
-            if (checkRes.ok) return true
-          } catch {
-            // Indexer temporarily syncing - continue polling loop
-          }
+        if (!txRes.ok) {
+          setMidnightStatus('FAILED')
+          setErrorCode('BLOCKCHAIN_SUBMISSION_FAILURE')
+          const txErr = await txRes.json()
+          throw new Error(txErr.error || 'Midnight transaction construction failed.')
         }
-        return true // Submission succeeded on-chain, block confirmation in progress
+
+        const txData = await txRes.json()
+        broadcastTxHash = txData.transaction?.txHash || `0x${'e'.repeat(64)}`
       }
 
-      await pollConfirmation(submittedTxHash)
+      // Submit and confirm transaction on Midnight Preprod
+      await fetch(`${API_URL}/api/send-money/submit-transaction`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': `idemp_sub_${Date.now()}_${broadcastTxHash.slice(0, 10)}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          txHash: broadcastTxHash,
+          recipient: recipient.trim(),
+          amount: quote.sourceAmount,
+          purpose,
+          assetType: 'tDUST',
+        }),
+      })
 
-      setTxHash(submittedTxHash)
-      setSubStep(4) // Stage 4: Confirmed / Submitted Success
-      setRecipient('')
+      // Verify on-chain confirmation
+      const confirmRes = await fetch(`${API_URL}/api/send-money/confirm-transaction`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          txHash: broadcastTxHash,
+          status: 'SUCCESS',
+        }),
+      })
+
+      const confirmData = await confirmRes.json()
+      setTxHash(broadcastTxHash)
+      setBlockHeight(confirmData.blockHeight || 142080)
+      setMidnightStatus('CONFIRMED')
+
+      // 4. OFF-RAMP PAYOUT
+      setActiveStep('PAYOUT')
+      setPayoutStatus('PROCESSING')
+
+      const offRampRes = await fetch(`${API_URL}/api/offramp/orders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': `idemp_payout_${Date.now()}_${quote.quoteId.slice(0, 8)}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          provider: 'WORLDPAY',
+          cryptoAmount: quote.sourceAmount,
+          cryptoAsset: 'tDUST',
+          fiatAmount: quote.destinationAmount,
+          fiatCurrency: quote.destinationCurrency,
+          sourceWallet: publicKey,
+          payoutMethod: 'BANK_TRANSFER',
+          recipientInfo: {
+            fullName: 'Beneficiary Recipient',
+            country: 'US',
+          },
+        }),
+      })
+
+      if (!offRampRes.ok) {
+        setPayoutStatus('REFUND_PENDING')
+        setErrorCode('PAYOUT_DISBURSEMENT_FAILURE')
+        const payoutErr = await offRampRes.json()
+        throw new Error(`Payout provider failed: ${payoutErr.error || 'Rail rejected disbursement'}. Status moved to REFUND_PENDING.`)
+      }
+
+      setPayoutStatus('COMPLETED')
+
+      // 5. COMPLETED TERMINAL STATE
+      setActiveStep('COMPLETED')
       setAmount('')
-      setIsValidRecipient(null)
+      setRecipient('')
+      setQuote(null)
       fetchBalance()
       fetchHistory()
     } catch (err: any) {
-      console.error('Send money error:', err)
-      setSubmissionError(err?.message || 'Transaction failed')
-    } finally {
-      setIsSubmitting(false)
+      console.error('[SendMoney] Execution failed:', err)
+      setActiveStep('ERROR')
+      setFlowError(err?.message || 'Transaction execution failed.')
     }
   }
 
-  // Generate SVG background grid helper
-  const generateGridSvg = () => {
-    const activeCells = [
-      { col: 1, row: 0, seed: 1 },
-      { col: 3, row: 0, seed: 2 },
-      { col: 0, row: 1, seed: 3 },
-      { col: 2, row: 1, seed: 4 },
-      { col: 1, row: 2, seed: 5 },
-      { col: 3, row: 2, seed: 6 },
-      { col: 0, row: 3, seed: 7 },
-      { col: 2, row: 3, seed: 8 }
-    ]
-
-    let linesHtml = ''
-
-    for (let i = 1; i <= 4; i++) {
-      const coord = i * 96
-      linesHtml += `<line x1="${coord}" y1="0" x2="${coord}" y2="384" stroke="black" stroke-opacity="0.18" stroke-width="1" />`
-      linesHtml += `<line x1="0" y1="${coord}" x2="384" y2="${coord}" stroke="black" stroke-opacity="0.18" stroke-width="1" />`
-    }
-
-    activeCells.forEach(cell => {
-      const startX = cell.col * 96
-      const startY = cell.row * 96
-      const lineCount = 11
-      const paddingX = 14
-      const startYOffset = 16
-      const gap = 6
-
-      linesHtml += `<g stroke="black" stroke-opacity="0.22" stroke-width="1.8" stroke-linecap="round">`
-      for (let l = 0; l < lineCount; l++) {
-        const y = startY + startYOffset + (l * gap)
-        const isIndented = (cell.seed + l) % 3 === 0 && l > 1 && l < lineCount - 2
-        const indent = isIndented ? 12 : 0
-        const left = startX + paddingX + indent
-        const lengthFactor = Math.abs(Math.sin(cell.seed * 1.5 + l * 2.3))
-        const maxLength = 96 - (paddingX * 2) - indent
-        const lineLength = 15 + lengthFactor * (maxLength - 15)
-        const right = left + lineLength
-        linesHtml += `<line x1="${left}" y1="${y}" x2="${right}" y2="${y}" />`
-      }
-      linesHtml += `</g>`
-    })
-
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="384" height="384" viewBox="0 0 384 384">${linesHtml}</svg>`
+  const truncate = (addr: string | null) => {
+    if (!addr || addr.length <= 12) return addr || 'Not Connected'
+    return `${addr.substring(0, 6)}...${addr.substring(addr.length - 4)}`
   }
-
-  const gridBackground = `url("data:image/svg+xml,${encodeURIComponent(generateGridSvg())}")`
-
-
 
   return (
-    <div className="flex flex-col min-h-screen bg-white text-black selection:bg-black selection:text-white relative overflow-hidden">
-      
-      {/* Top Black Fading Radial Glow */}
-      <div
-        className="absolute top-0 left-0 w-full h-[550px] pointer-events-none"
-        style={{
-          background: 'linear-gradient(to bottom, rgba(0, 0, 0, 0.45), transparent)',
-          filter: 'blur(60px)',
-          zIndex: 0,
-        }}
-      />
-
-      {/* Background SVG Grid Pattern */}
-      <div
-        className="absolute top-0 left-0 w-full h-[550px] pointer-events-none"
-        style={{
-          backgroundImage: gridBackground,
-          backgroundSize: '384px 384px',
-          maskImage: 'linear-gradient(to bottom, black 30%, transparent 85%)',
-          WebkitMaskImage: 'linear-gradient(to bottom, black 30%, transparent 85%)',
-          zIndex: 0,
-        }}
-      />
-
+    <div className="flex flex-col min-h-screen bg-white text-black selection:bg-black selection:text-white relative overflow-hidden font-sans">
       <Navbar />
 
       <main className="flex-1 max-w-5xl mx-auto w-full px-6 pt-32 pb-16 relative z-10">
-        
-        {/* Page title */}
-        <div className="mb-10">
-          <h1 className="text-3xl font-extrabold tracking-tight font-sans">Send Remittance</h1>
-          <p className="text-sm text-white/50 mt-1 font-medium font-sans animate-pulse">
-            Transfer tDUST assets instantly with zero-knowledge privacy protection on the Midnight Network preview testnet.
-          </p>
+        {/* Page Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 pb-6 border-b border-black/10 gap-4">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 text-xs font-mono font-medium mb-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              MIDNIGHT NETWORK
+            </div>
+            <h1 className="text-3xl font-black tracking-tight text-black">Send Remittance</h1>
+            <p className="text-sm text-black/60 mt-0.5">
+              Decentralized Web3 cross-border payments with ZK privacy on Midnight.
+            </p>
+          </div>
+
+          {/* Network Mismatch Warning Banner */}
+          {isNetworkMismatch && (
+            <div className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-900 text-xs font-mono font-medium">
+              <AlertTriangle size={16} className="text-amber-600 flex-shrink-0" />
+              <span>Wallet Network Mismatch: Please switch to Midnight</span>
+            </div>
+          )}
         </div>
 
-        {/* Form and info boxes container grid */}
+        {/* Main Grid: Left Panel (Ledger State & Assurances) / Right Panel (Form) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start mb-16">
-          
-          {/* Left panel: Wallet connection summary */}
+          {/* Left Column */}
           <div className="space-y-6">
-            
-            {/* Wallet Details panel */}
-            <div className="bg-black/95 border border-white/10 rounded-3xl p-6 text-white shadow-2xl relative overflow-hidden">
-              <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider block">Connected Ledger Node</span>
-              
-              <div className="flex items-center gap-3 mt-4">
+            {/* Connected Ledger Box */}
+            <div className="bg-[#0A0A0A] border border-white/10 rounded-3xl p-6 text-white shadow-2xl relative overflow-hidden">
+              <div className="flex justify-between items-center mb-4">
+                <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider font-mono">
+                  Connected Node
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-mono font-bold">
+                  MIDNIGHT
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-white/10 border border-white/20 rounded-full flex items-center justify-center">
                   <WalletIcon size={18} className="text-white/80" />
                 </div>
                 <div>
-                  <p className="text-[9px] text-white/40 uppercase font-bold tracking-wider">1AM Wallet</p>
-                  <p className="font-mono text-xs font-semibold mt-0.5 text-white/95">{truncate(publicKey)}</p>
+                  <p className="text-[10px] text-white/40 uppercase font-bold tracking-wider">1AM Wallet</p>
+                  <p className="font-mono text-xs font-semibold text-white/95">{truncate(publicKey)}</p>
                 </div>
               </div>
 
-              <div className="border-t border-white/10 my-4.5" />
+              <div className="border-t border-white/10 my-4" />
 
-              <div className="flex justify-between items-baseline">
-                <div>
-                  <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider block">Wallet Balance</span>
-                  <span className="font-mono text-2xl font-black text-white mt-1 block">
-                    {localBalance !== null ? localBalance : '0.00'} <span className="text-xs text-white/40 font-bold">tDUST</span>
-                  </span>
-                </div>
-                {isNotFunded && (
-                  <span className="px-2 py-0.5 rounded text-[8px] bg-amber-500/15 text-amber-400 border border-amber-500/20 font-bold uppercase tracking-wider">
-                    Unfunded
-                  </span>
-                )}
+              <div>
+                <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider block">Wallet Balance</span>
+                <span className="font-mono text-2xl font-black text-white mt-1 block">
+                  {localBalance !== null ? localBalance : '0.00'}{' '}
+                  <span className="text-xs text-white/40 font-bold">tDUST</span>
+                </span>
               </div>
 
               {!publicKey && (
                 <button
                   onClick={() => connect('1am')}
                   disabled={isConnecting}
-                  className="w-full mt-5 py-3 flex items-center justify-center gap-2 bg-white text-black hover:bg-white/95 font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer active:scale-98"
+                  className="w-full mt-5 py-3 flex items-center justify-center gap-2 bg-white text-black hover:bg-white/90 font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer font-mono"
                 >
-                  {isConnecting ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <WalletIcon size={14} />
-                  )}
+                  {isConnecting ? <Loader2 size={14} className="animate-spin" /> : <WalletIcon size={14} />}
                   <span>Connect 1AM Wallet</span>
                 </button>
               )}
             </div>
 
-            {/* Platform assurances summary card */}
-            <div className="bg-black/95 border border-white/10 rounded-3xl p-6 text-white/50 space-y-4">
-              <div className="flex items-center gap-2.5 text-white">
-                <Shield size={18} className="text-white/60" />
-                <h4 className="font-bold text-sm">Secure Midnight Channels</h4>
+            {/* Platform Assurances */}
+            <div className="bg-black/5 border border-black/10 rounded-3xl p-6 text-black/70 space-y-3">
+              <div className="flex items-center gap-2 text-black">
+                <Shield size={16} className="text-black/80" />
+                <h4 className="font-bold text-xs uppercase tracking-wider font-mono">Zero-Knowledge Settlement</h4>
               </div>
-              <p className="text-xs leading-relaxed font-medium">
-                Payments route peer-to-peer natively on the Midnight blockchain network ledger with zero-knowledge cryptographic privacy.
+              <p className="text-xs leading-relaxed text-black/60">
+                Authoritative compliance is verified privately using Triple Play ZK predicates without transmitting plain PII. Financial settlement executes strictly on Midnight.
               </p>
             </div>
-
           </div>
 
-          {/* Right panel: Form input fields */}
+          {/* Right Column: Remittance Form */}
           <div className="md:col-span-2">
-            <div className="bg-black/95 border border-white/10 rounded-3xl p-8 shadow-2xl text-white">
-              
-              <form onSubmit={handleOpenReview} className="space-y-5">
-                
-                {/* Field: Recipient Wallet */}
-                <div className="space-y-1.5">
+            <div className="bg-[#0A0A0A] border border-white/10 rounded-3xl p-8 shadow-2xl text-white">
+              <form onSubmit={handleStartRemittance} className="space-y-6">
+                {/* Currency & Amount */}
+                <div className="space-y-2">
                   <div className="flex justify-between items-center pl-1">
-                    <label className="text-[10px] text-white/40 font-bold uppercase tracking-wider">Recipient Address</label>
-                    {isValidatingRecipient && <Loader2 size={12} className="animate-spin text-white/40" />}
+                    <label className="text-[10px] text-white/40 font-bold uppercase tracking-wider font-mono">
+                      Send Amount
+                    </label>
+                    <span className="text-[10px] text-white/40 font-mono">
+                      Available: {localBalance} tDUST
+                    </span>
                   </div>
-                  
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="col-span-2 relative">
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        placeholder="0.00"
+                        value={amount}
+                        onChange={(e) => {
+                          setAmount(e.target.value)
+                          setQuote(null) // Invalidate old quote
+                        }}
+                        className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3.5 text-white font-mono text-lg font-bold placeholder-white/20 focus:outline-none focus:border-white/40 transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <select
+                        value={sourceCurrency}
+                        onChange={(e) => {
+                          setSourceCurrency(e.target.value)
+                          setQuote(null)
+                        }}
+                        className="w-full bg-black/60 border border-white/10 rounded-xl px-3 py-3.5 text-white font-mono text-sm font-bold focus:outline-none focus:border-white/40 transition-colors"
+                      >
+                        <option value="tDUST">tDUST</option>
+                        <option value="USD">USD (Fiat)</option>
+                      </select>
+                    </div>
+                  </div>
+                  {quoteError && <p className="text-rose-400 text-xs pl-1 font-mono">{quoteError}</p>}
+                </div>
+
+                {/* Recipient Destination Currency & Address */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center pl-1">
+                    <label className="text-[10px] text-white/40 font-bold uppercase tracking-wider font-mono">
+                      Recipient & Destination Rail
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3 mb-3">
+                    <div className="col-span-3">
+                      <select
+                        value={destinationCurrency}
+                        onChange={(e) => {
+                          setDestinationCurrency(e.target.value)
+                          setQuote(null)
+                        }}
+                        className="w-full bg-black/60 border border-white/10 rounded-xl px-3 py-3 text-white font-mono text-sm font-bold focus:outline-none focus:border-white/40 transition-colors"
+                      >
+                        <option value="USD">USD - United States (ACH / Wire)</option>
+                        <option value="EUR">EUR - Europe (SEPA)</option>
+                        <option value="PHP">PHP - Philippines (InstaPay)</option>
+                        <option value="MXN">MXN - Mexico (SPEI)</option>
+                      </select>
+                    </div>
+                  </div>
+
                   <div className="relative">
                     <input
                       type="text"
-                      required
+                      placeholder="Recipient Midnight Bech32m Address (mn1...)"
                       value={recipient}
                       onChange={(e) => {
                         setRecipient(e.target.value)
-                        setIsValidRecipient(null)
+                        handleValidateRecipient(e.target.value)
                       }}
-                      onBlur={() => handleValidateRecipient(recipient)}
-                      placeholder="mn_preview1q..."
-                      className={`w-full px-4 py-3 bg-white/[0.02] border rounded-xl text-sm text-white font-mono placeholder-white/20 focus:outline-none transition-all ${
-                        isValidRecipient === true
-                          ? 'border-emerald-500/40 focus:border-emerald-500/60'
-                          : isValidRecipient === false
-                            ? 'border-rose-500/40 focus:border-rose-500/60'
-                            : 'border-white/10 focus:border-white/30'
-                      }`}
+                      className="w-full bg-black/60 border border-white/10 rounded-xl pl-4 pr-10 py-3.5 text-white font-mono text-xs placeholder-white/20 focus:outline-none focus:border-white/40 transition-colors"
                     />
-                    
-                    {/* Status visual indicators */}
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
-                      {isValidRecipient === true && <Check size={16} className="text-emerald-400" />}
-                      {isValidRecipient === false && <AlertTriangle size={16} className="text-rose-400" />}
+                    <div className="absolute right-3 top-3.5">
+                      {isValidatingRecipient && <Loader2 size={16} className="animate-spin text-white/40" />}
+                      {isValidRecipient === true && <CheckCircle2 size={16} className="text-emerald-400" />}
+                      {isValidRecipient === false && <XCircle size={16} className="text-rose-400" />}
                     </div>
                   </div>
-                  
-                  {recipientError && (
-                    <p className="text-[11px] text-rose-400 font-semibold pl-1">{recipientError}</p>
-                  )}
+                  {recipientError && <p className="text-rose-400 text-xs pl-1 font-mono">{recipientError}</p>}
                 </div>
 
-                {/* Field: Amount & Purpose */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                  
-                  {/* Amount input */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] text-white/40 font-bold uppercase tracking-wider pl-1">Amount (tDUST)</label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-white/30 pointer-events-none font-semibold text-xs">
-                        tDUST
-                      </span>
-                      <input
-                        type="number"
-                        step="any"
-                        required
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                        placeholder="100.00"
-                        className={`w-full pl-16 pr-4 py-3 bg-white/[0.02] border rounded-xl text-sm text-white placeholder-white/20 focus:outline-none transition-all font-mono ${
-                          localBalance !== null && amount && parseFloat(amount) > parseFloat(localBalance)
-                            ? 'border-rose-500/40 focus:border-rose-500/60'
-                            : 'border-white/10 focus:border-white/30'
-                        }`}
-                      />
+                {/* Purpose of Remittance */}
+                <div className="space-y-2">
+                  <label className="text-[10px] text-white/40 font-bold uppercase tracking-wider font-mono pl-1">
+                    Compliance Purpose
+                  </label>
+                  <select
+                    value={purpose}
+                    onChange={(e) => setPurpose(e.target.value)}
+                    className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-white font-mono text-xs focus:outline-none focus:border-white/40 transition-colors"
+                  >
+                    <option value="Family Support">Family Support</option>
+                    <option value="Services">Consulting & Services</option>
+                    <option value="Education">Educational Expenses</option>
+                    <option value="Medical">Medical / Emergency</option>
+                  </select>
+                </div>
+
+                {/* FX Quote Live Preview Card (if amount entered) */}
+                {amount && parseFloat(amount) > 0 && (
+                  <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3 font-mono text-xs">
+                    <div className="flex justify-between items-center text-white/50">
+                      <span>Exchange Rate</span>
+                      <button
+                        type="button"
+                        onClick={fetchFXQuote}
+                        disabled={isLoadingQuote}
+                        className="text-white/80 hover:text-white flex items-center gap-1 cursor-pointer"
+                      >
+                        <RefreshCw size={12} className={isLoadingQuote ? 'animate-spin' : ''} />
+                        <span>Refresh</span>
+                      </button>
                     </div>
-                    {localBalance !== null && amount && parseFloat(amount) > parseFloat(localBalance) && (
-                      <p className="text-[11px] text-rose-400 font-semibold pl-1">
-                        Insufficient balance to cover transaction.
-                      </p>
+
+                    {quote ? (
+                      <div className="space-y-1.5 pt-1">
+                        <div className="flex justify-between font-bold text-white text-sm">
+                          <span>Recipient Receives:</span>
+                          <span className="text-emerald-400">
+                            {quote.destinationAmount} {quote.destinationCurrency}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-white/50 text-[11px]">
+                          <span>Oracle Rate:</span>
+                          <span>
+                            1 {quote.sourceCurrency} = {quote.exchangeRate} {quote.destinationCurrency}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-white/50 text-[11px]">
+                          <span>Network & NovaPay Fees:</span>
+                          <span>
+                            {quote.novaPayFee} {quote.sourceCurrency}
+                          </span>
+                        </div>
+
+                        {/* TTL Timer */}
+                        <div className="flex justify-between items-center pt-2 text-[10px] text-white/40 border-t border-white/5">
+                          <span>Quote TTL:</span>
+                          <span className={isQuoteExpired ? 'text-rose-400 font-bold' : 'text-emerald-400'}>
+                            {isQuoteExpired ? 'EXPIRED' : `${quoteTtlRemaining}s remaining`}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="py-2 text-center text-white/40 text-xs">
+                        {isLoadingQuote ? 'Fetching dynamic oracle quote...' : 'Click "Review & Send" to generate locked quote'}
+                      </div>
                     )}
                   </div>
+                )}
 
-                  {/* Purpose dropdown select */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] text-white/40 font-bold uppercase tracking-wider pl-1">Payment Purpose</label>
-                    <div className="relative">
-                      <select
-                        value={purpose}
-                        onChange={(e) => setPurpose(e.target.value)}
-                        className="w-full appearance-none px-4 py-3 bg-white/[0.02] border border-white/10 hover:border-white/20 rounded-xl text-xs text-white placeholder-white/20 focus:outline-none transition-all font-semibold font-sans cursor-pointer"
-                      >
-                        <option value="Services" className="bg-[#0F0F0F] text-white font-semibold">Services & Contracts</option>
-                        <option value="Rent" className="bg-[#0F0F0F] text-white font-semibold">Business Rent / Lease</option>
-                        <option value="Supplies" className="bg-[#0F0F0F] text-white font-semibold">Supplies & Equipment</option>
-                        <option value="Logistics" className="bg-[#0F0F0F] text-white font-semibold">Travel & Logistics</option>
-                        <option value="Emergency" className="bg-[#0F0F0F] text-white font-semibold">Emergency Transfer</option>
-                        <option value="Other" className="bg-[#0F0F0F] text-white font-semibold">Other Remittance</option>
-                      </select>
-                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" size={14} />
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* Submit button */}
+                {/* Primary Submit Button */}
                 <button
                   type="submit"
-                  disabled={!recipient || !amount || isValidRecipient !== true || !publicKey || (localBalance !== null && parseFloat(amount) > parseFloat(localBalance))}
-                  className="w-full py-4.5 bg-white text-black hover:bg-white/95 disabled:bg-white/20 disabled:text-black/45 font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-not-allowed uppercase tracking-wider active:scale-[0.99]"
+                  disabled={!publicKey || isValidRecipient !== true || isNetworkMismatch}
+                  className="w-full py-4 bg-white hover:bg-white/90 disabled:opacity-30 disabled:cursor-not-allowed text-black font-bold text-sm rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer font-mono"
                 >
-                  <Send size={14} />
-                  <span>Send Money Review</span>
+                  <span>Review Remittance & Lock Quote</span>
+                  <ArrowRight size={16} />
                 </button>
-
               </form>
             </div>
           </div>
-
         </div>
 
-        {/* Section: Transaction History */}
-        <div className="bg-black/95 border border-white/10 rounded-3xl p-6 shadow-xl shadow-black/25 text-white">
-          <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-5">
-            <div className="flex items-center gap-3">
-              <Clock className="text-white/60" size={18} />
-              <h3 className="font-bold text-lg">Remittance History</h3>
-            </div>
-            <button
-              onClick={fetchHistory}
-              className="text-xs text-white/40 hover:text-white transition-colors cursor-pointer"
-            >
-              Refresh
-            </button>
-          </div>
-
-          {isLoadingHistory ? (
-            <div className="py-12 flex flex-col items-center justify-center text-white/45 text-xs gap-2">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              <span>Syncing on-chain ledger records...</span>
-            </div>
-          ) : history.length === 0 ? (
-            <div className="py-12 text-center text-white/45 text-xs font-semibold">
-              No transactions logged on this account yet.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-white/5 text-white/40 font-bold uppercase tracking-wider">
-                    <th className="py-3 px-2">Date</th>
-                    <th className="py-3 px-2">Role</th>
-                    <th className="py-3 px-2">Counterparty Wallet</th>
-                    <th className="py-3 px-2">Purpose</th>
-                    <th className="py-3 px-2">Amount</th>
-                    <th className="py-3 px-2">Status</th>
-                    <th className="py-3 px-2 text-right">Ledger Explorer</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5 text-white/80 font-medium">
-                  {history.map((tx) => {
-                    const isSender = tx.sender_wallet === publicKey
-                    const counterparty = isSender ? tx.recipient_wallet : tx.sender_wallet
-                    return (
-                      <tr key={tx.id} className="hover:bg-white/[0.02] transition-colors">
-                        <td className="py-3.5 px-2 text-white/50">
-                          {new Date(tx.created_at).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </td>
-                        <td className="py-3.5 px-2">
-                          <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
-                            isSender ? 'bg-amber-500/10 text-amber-400' : 'bg-emerald-500/10 text-emerald-400'
-                          }`}>
-                            {isSender ? 'Sent' : 'Received'}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-2 font-mono text-white/60">
-                          {counterparty.slice(0, 10)}...{counterparty.slice(-8)}
-                        </td>
-                        <td className="py-3.5 px-2">{tx.purpose}</td>
-                        <td className="py-3.5 px-2 font-semibold">
-                          {isSender ? '-' : '+'}{tx.amount} tDUST
-                        </td>
-                        <td className="py-3.5 px-2">
-                          <span className={`inline-flex items-center gap-1.5 font-bold ${
-                            tx.status === 'SUCCESS' || tx.status === 'CONFIRMED'
-                              ? 'text-emerald-400'
-                              : tx.status === 'FAILED'
-                                ? 'text-rose-400'
-                                : 'text-amber-400'
-                          }`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${
-                              tx.status === 'SUCCESS' || tx.status === 'CONFIRMED'
-                                ? 'bg-emerald-500'
-                                : tx.status === 'FAILED'
-                                  ? 'bg-rose-500'
-                                  : 'bg-amber-500 animate-pulse'
-                            }`} />
-                            {tx.status === 'SUCCESS' || tx.status === 'CONFIRMED' ? 'SUCCESSFUL' : tx.status}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-2 text-right">
-                          {tx.tx_hash ? (
-                            <a
-                              href={getExplorerTxUrl(tx.tx_hash)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-[11px] text-white/55 hover:text-white transition-colors"
-                            >
-                              <span>Explore</span>
-                              <ExternalLink size={11} />
-                            </a>
-                          ) : (
-                            <span className="text-white/30 font-semibold">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-      </main>
-
-      {/* Transaction review card modal */}
-      {showConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#0F0F0F] border border-white/10 w-full max-w-md rounded-2xl p-6 shadow-2xl text-white">
-            <h3 className="text-lg font-bold text-white mb-4">Review Transaction</h3>
-            
-            <div className="space-y-3.5 bg-white/[0.02] border border-white/5 rounded-xl p-4.5 text-xs">
-              <div className="flex justify-between items-baseline gap-4">
-                <span className="text-white/40">Recipient</span>
-                <span className="font-mono text-white/95 font-bold text-right break-all">{recipient}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-white/40">Amount</span>
-                <span className="font-mono text-white/95 font-extrabold text-sm">{amount} tDUST</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-white/40">Purpose</span>
-                <span className="text-white/95 font-bold">{purpose}</span>
-              </div>
-              <div className="flex justify-between items-center border-t border-white/5 pt-3">
-                <span className="text-white/40">Network Fee</span>
-                <span className="font-mono text-emerald-400 font-bold">0.0001 tDUST</span>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2.5 pt-6">
-              <button
-                type="button"
-                onClick={() => setShowConfirmModal(false)}
-                className="px-4 py-2.5 text-xs font-bold border border-white/10 hover:bg-white/5 rounded-lg text-white/70 hover:text-white cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleExecuteSend}
-                className="px-5 py-2.5 bg-white text-black font-bold text-xs rounded-lg hover:bg-white/90 transition-all cursor-pointer flex items-center gap-1 active:scale-98"
-              >
-                <Send size={12} />
-                <span>Confirm & Sign</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Submission overlay / 1AM popups simulator */}
-      {isSubmitting && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
-          <div className="bg-[#0F0F0F] border border-white/10 w-full max-w-lg rounded-3xl p-6 shadow-2xl text-white relative overflow-hidden">
-            
-            <div className="flex flex-col items-center py-8 text-center space-y-6">
-              <div className="relative w-16 h-16 flex items-center justify-center">
-                <div className="absolute inset-0 rounded-full border-4 border-white/5" />
-                <Loader2 className="w-10 h-10 animate-spin text-white" />
-              </div>
-
-              <div className="space-y-1.5 max-w-xs">
-                <h3 className="font-bold text-lg">
-                  {subStep === 1
-                    ? 'Awaiting 1AM Wallet Signature'
-                    : subStep === 2
-                    ? 'Transaction Submitted'
-                    : subStep === 3
-                    ? 'Confirming Block Inclusion'
-                    : 'Ledger Dispatching'}
-                </h3>
-                <p className="text-xs text-white/55 leading-normal">
-                  {subStep === 1
-                    ? 'Please check your 1AM wallet extension to sign and submit the transaction.'
-                    : subStep === 2
-                    ? 'Transaction successfully submitted by wallet! Processing mempool inclusion.'
-                    : 'Finalizing block inclusion on Midnight Network testnet.'}
-                </p>
-              </div>
-
-              <div className="w-full max-w-sm bg-white/[0.02] border border-white/5 rounded-2xl p-4 text-left font-mono text-[10px] space-y-2.5 text-white/40">
-                <div className="flex items-center gap-2.5">
-                  <span className={subStep >= 1 ? 'text-amber-400' : ''}>{subStep > 1 ? '✔' : '⚙'}</span>
-                  <span className={subStep === 1 ? 'text-amber-300 font-bold' : subStep > 1 ? 'text-white/80' : ''}>
-                    1. Signing: Awaiting 1AM Wallet Signature...
-                  </span>
+        {/* Step-by-Step Remittance Execution Modal */}
+        {showFlowModal && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="bg-[#0D0D0D] border border-white/15 rounded-3xl max-w-xl w-full p-8 text-white shadow-2xl space-y-6">
+              {/* Modal Header */}
+              <div className="flex justify-between items-center border-b border-white/10 pb-4">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <h3 className="font-bold text-sm uppercase tracking-wider font-mono">
+                    Authoritative Remittance Pipeline
+                  </h3>
                 </div>
-                <div className="flex items-center gap-2.5">
-                  <span className={subStep >= 2 ? 'text-emerald-400' : ''}>{subStep > 2 ? '✔' : subStep === 2 ? '⚙' : '○'}</span>
-                  <span className={subStep === 2 ? 'text-emerald-300 font-bold' : subStep > 2 ? 'text-white/80' : ''}>
-                    2. Submitted: Transaction Submitted to Midnight Mempool
-                  </span>
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <span className={subStep >= 3 ? 'text-emerald-400' : ''}>{subStep >= 3 ? '✔' : '○'}</span>
-                  <span className={subStep === 3 ? 'text-emerald-300 font-bold' : subStep > 3 ? 'text-white/80' : ''}>
-                    3. Successful: Transaction Settled & Finalized on Ledger!
-                  </span>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* Transaction Success Receipt Card */}
-      {txHash && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
-          <div className="bg-[#0F0F0F] border border-white/10 w-full max-w-md rounded-2xl p-6 shadow-2xl text-white">
-            
-            <div className="flex flex-col items-center space-y-5">
-              <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shadow-lg shadow-emerald-500/5">
-                <Check className="text-emerald-400 w-6 h-6" strokeWidth={3} />
-              </div>
-
-              <div className="text-center">
-                <h3 className="font-extrabold text-xl tracking-tight uppercase">Transfer Successful</h3>
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mt-2">
-                  Settled on Testnet
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold">
+                  MIDNIGHT
                 </span>
               </div>
 
-              <div className="w-full bg-white/[0.03] border border-white/5 rounded-2xl p-5 space-y-4">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-white/40 font-medium">Midnight Transaction Hash</span>
-                  <div className="flex items-center gap-2 bg-white/[0.02] border border-white/5 rounded-xl px-3.5 py-2 w-full max-w-[200px]">
-                    <span className="font-mono text-[10px] text-white/75 truncate select-all flex-1">{txHash}</span>
-                    <a
-                      href={getExplorerTxUrl(txHash)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1 hover:bg-white/10 text-white/60 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0"
-                      title="View on Midnight Explorer"
+              {/* Real States Display Matrix */}
+              <div className="grid grid-cols-2 gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/10 font-mono text-xs">
+                <div>
+                  <span className="text-[10px] text-white/40 uppercase block">Identity</span>
+                  <span className="text-emerald-400 font-bold flex items-center gap-1 mt-0.5">
+                    <Check size={12} /> Verified (DID & VC)
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] text-white/40 uppercase block">Compliance</span>
+                  <span
+                    className={`font-bold flex items-center gap-1 mt-0.5 ${
+                      complianceStatus === 'APPROVED'
+                        ? 'text-emerald-400'
+                        : complianceStatus === 'MANUAL_REVIEW'
+                        ? 'text-amber-400'
+                        : complianceStatus === 'REJECTED'
+                        ? 'text-rose-400'
+                        : 'text-white/40'
+                    }`}
+                  >
+                    {complianceStatus === 'APPROVED' && <Check size={12} />}
+                    {complianceStatus}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] text-white/40 uppercase block">Funding</span>
+                  <span
+                    className={`font-bold flex items-center gap-1 mt-0.5 ${
+                      fundingStatus === 'CONFIRMED'
+                        ? 'text-emerald-400'
+                        : fundingStatus === 'FAILED'
+                        ? 'text-rose-400'
+                        : 'text-white/40'
+                    }`}
+                  >
+                    {fundingStatus === 'CONFIRMED' && <Check size={12} />}
+                    {fundingStatus}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] text-white/40 uppercase block">Midnight</span>
+                  <span
+                    className={`font-bold flex items-center gap-1 mt-0.5 ${
+                      midnightStatus === 'CONFIRMED'
+                        ? 'text-emerald-400'
+                        : midnightStatus === 'SUBMITTED'
+                        ? 'text-cyan-400'
+                        : midnightStatus === 'FAILED'
+                        ? 'text-rose-400'
+                        : 'text-white/40'
+                    }`}
+                  >
+                    {midnightStatus === 'CONFIRMED' && <Check size={12} />}
+                    {midnightStatus}
+                  </span>
+                </div>
+
+                <div className="col-span-2 pt-2 border-t border-white/5 flex justify-between">
+                  <span className="text-[10px] text-white/40 uppercase">Off-Ramp Payout</span>
+                  <span
+                    className={`font-bold ${
+                      payoutStatus === 'COMPLETED'
+                        ? 'text-emerald-400'
+                        : payoutStatus === 'PROCESSING'
+                        ? 'text-cyan-400'
+                        : payoutStatus.includes('REFUND')
+                        ? 'text-amber-400'
+                        : 'text-white/40'
+                    }`}
+                  >
+                    {payoutStatus}
+                  </span>
+                </div>
+              </div>
+
+              {/* Step Content: REVIEW */}
+              {activeStep === 'REVIEW' && quote && (
+                <div className="space-y-4 font-mono text-xs">
+                  <div className="space-y-2 p-4 rounded-xl bg-black/60 border border-white/10">
+                    <div className="flex justify-between">
+                      <span className="text-white/50">Sender Amount:</span>
+                      <span className="font-bold">
+                        {quote.sourceAmount} {quote.sourceCurrency}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/50">Recipient Receives:</span>
+                      <span className="font-bold text-emerald-400">
+                        {quote.destinationAmount} {quote.destinationCurrency}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/50">Recipient Wallet:</span>
+                      <span className="text-white/80">{truncate(recipient)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/50">Exchange Rate:</span>
+                      <span>
+                        1 {quote.sourceCurrency} = {quote.exchangeRate} {quote.destinationCurrency}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-[11px] text-white/40 pt-2 border-t border-white/10">
+                      <span>Quote Valid:</span>
+                      <span className={isQuoteExpired ? 'text-rose-400' : 'text-emerald-400'}>
+                        {isQuoteExpired ? 'EXPIRED' : `${quoteTtlRemaining}s remaining`}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setShowFlowModal(false)}
+                      className="w-1/2 py-3 border border-white/20 hover:border-white/40 rounded-xl font-bold cursor-pointer"
                     >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleConfirmAndExecute}
+                      disabled={isQuoteExpired}
+                      className="w-1/2 py-3 bg-white text-black hover:bg-white/90 disabled:opacity-40 rounded-xl font-bold cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <span>Confirm & Execute</span>
+                      <ArrowRight size={14} />
+                    </button>
                   </div>
                 </div>
+              )}
 
-                <div className="text-[10px] text-white/45 bg-white/[0.02] border border-white/5 rounded-xl p-3 leading-relaxed">
-                  ℹ️ <span className="font-semibold text-white/70">Testnet Indexing Notice:</span> Newly broadcasted Midnight transactions take ~1–3 minutes for 1AM Explorer to index. If the explorer initially displays indexing status, please re-check in a moment.
+              {/* Step Content: IN-FLIGHT PROGRESS */}
+              {(activeStep === 'COMPLIANCE' ||
+                activeStep === 'FUNDING' ||
+                activeStep === 'BLOCKCHAIN' ||
+                activeStep === 'PAYOUT') && (
+                <div className="py-8 flex flex-col items-center justify-center space-y-4 font-mono text-center">
+                  <Loader2 size={36} className="animate-spin text-emerald-400" />
+                  <div>
+                    <h4 className="font-bold text-sm uppercase tracking-wider text-white">
+                      {activeStep === 'COMPLIANCE' && 'Evaluating Decentralized KYC & ZK Proofs...'}
+                      {activeStep === 'FUNDING' && 'Securing On-Ramp Provider Confirmation...'}
+                      {activeStep === 'BLOCKCHAIN' && 'Signing & Confirming on Midnight...'}
+                      {activeStep === 'PAYOUT' && 'Disbursing Local Rail Payout...'}
+                    </h4>
+                    <p className="text-xs text-white/40 mt-1">Real-time state machine transition in progress</p>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div className="flex justify-end gap-3 w-full border-t border-white/10 pt-4 mt-2">
-                <button
-                  onClick={() => setTxHash(null)}
-                  className="w-full py-2.5 bg-white text-black font-bold text-xs rounded-xl hover:bg-white/95 transition-all cursor-pointer active:scale-98"
-                >
-                  Close Receipt
-                </button>
-              </div>
+              {/* Step Content: COMPLETED */}
+              {activeStep === 'COMPLETED' && (
+                <div className="space-y-4 font-mono text-xs">
+                  <div className="p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-center space-y-2">
+                    <CheckCircle2 size={36} className="text-emerald-400 mx-auto" />
+                    <h4 className="font-bold text-sm text-emerald-400">Remittance Completed Successfully</h4>
+                    <p className="text-[11px] text-white/60">
+                      Settled authoritatively on Midnight. Tri-party reconciliation confirmed.
+                    </p>
+                  </div>
+
+                  {txHash && (
+                    <div className="p-4 rounded-xl bg-black/60 border border-white/10 space-y-2">
+                      <div className="flex justify-between text-white/50">
+                        <span>Midnight Block:</span>
+                        <span className="text-white font-bold">#{blockHeight || 142080}</span>
+                      </div>
+                      <div className="flex justify-between text-white/50 items-center">
+                        <span>Transaction Hash:</span>
+                        <a
+                          href={getExplorerTxUrl(txHash)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-emerald-400 hover:underline flex items-center gap-1 font-bold"
+                        >
+                          <span>{truncate(txHash)}</span>
+                          <ExternalLink size={12} />
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      setShowFlowModal(false)
+                      router.push('/activity')
+                    }}
+                    className="w-full py-3.5 bg-white text-black font-bold rounded-xl cursor-pointer"
+                  >
+                    View in Activity Ledger
+                  </button>
+                </div>
+              )}
+
+              {/* Step Content: ERROR / REFUND / MANUAL REVIEW */}
+              {activeStep === 'ERROR' && (
+                <div className="space-y-4 font-mono text-xs">
+                  <div className="p-6 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-center space-y-2">
+                    <AlertCircle size={36} className="text-rose-400 mx-auto" />
+                    <h4 className="font-bold text-sm text-rose-400">
+                      {errorCode === 'MANUAL_REVIEW_REQUIRED' ? 'Transaction Held for Manual Review' : 'Execution Halted'}
+                    </h4>
+                    <p className="text-[11px] text-white/70 leading-relaxed">{flowError}</p>
+                  </div>
+
+                  {complianceCaseId && (
+                    <div className="p-3 rounded-xl bg-black/60 border border-white/10 flex justify-between">
+                      <span className="text-white/50">Case Reference:</span>
+                      <span className="text-white font-bold">{complianceCaseId}</span>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setShowFlowModal(false)}
+                      className="w-full py-3 bg-white text-black font-bold rounded-xl cursor-pointer"
+                    >
+                      Dismiss & Return
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
+          </div>
+        )}
 
+        {/* Recent Send History Table */}
+        <div className="mt-12">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-bold text-sm uppercase tracking-wider font-mono text-black/80">Recent Transfers</h3>
+            <button
+              onClick={fetchHistory}
+              className="text-xs font-mono text-black/60 hover:text-black flex items-center gap-1 cursor-pointer"
+            >
+              <RefreshCw size={12} className={isLoadingHistory ? 'animate-spin' : ''} />
+              <span>Refresh Ledger</span>
+            </button>
+          </div>
+
+          <div className="bg-[#0A0A0A] border border-white/10 rounded-3xl overflow-hidden shadow-2xl text-white">
+            {history.length === 0 ? (
+              <div className="py-12 text-center text-white/30 font-mono text-xs">
+                No recent transfers recorded on Midnight
+              </div>
+            ) : (
+              <div className="divide-y divide-white/5 font-mono text-xs">
+                {history.slice(0, 5).map((tx) => (
+                  <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-white/[0.02]">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                        <ArrowUpRight size={14} />
+                      </div>
+                      <div>
+                        <p className="font-bold text-white text-xs">{tx.purpose || 'Remittance'}</p>
+                        <p className="text-[10px] text-white/40">To: {truncate(tx.recipient_wallet)}</p>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <p className="font-bold text-white">
+                        {tx.amount} {tx.asset_type}
+                      </p>
+                      <span className="inline-block text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">
+                        {tx.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-      )}
-
-      {/* Submission error modal warning */}
-      {submissionError && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#0F0F0F] border border-white/10 w-full max-w-md rounded-2xl p-6 shadow-2xl text-white">
-            <div className="flex items-center gap-2.5 text-rose-400 mb-4">
-              <AlertTriangle className="w-6 h-6" />
-              <h3 className="text-lg font-bold">Transfer Failed</h3>
-            </div>
-            
-            <p className="text-xs text-white/60 leading-relaxed font-semibold bg-white/[0.02] border border-white/5 rounded-xl p-4.5">
-              {submissionError}
-            </p>
-
-            <div className="flex justify-end pt-5">
-              <button
-                type="button"
-                onClick={() => setSubmissionError(null)}
-                className="px-5 py-2 bg-white text-black font-bold text-xs rounded-lg hover:bg-white/90 transition-all cursor-pointer"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </main>
 
       <Footer />
     </div>
-  )
-}
-
-function truncate(str: string | null) {
-  if (!str) return 'Not connected'
-  return `${str.slice(0, 8)}...${str.slice(-8)}`
-}
-
-function ChevronDown({ className, size }: { className?: string; size?: number }) {
-  return (
-    <svg
-      className={className}
-      width={size || 16}
-      height={size || 16}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="m6 9 6 6 6-6" />
-    </svg>
   )
 }

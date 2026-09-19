@@ -7,30 +7,24 @@ import prisma from '../config/db'
  */
 export const getNotifications = async (req: AuthRequest, res: Response) => {
   try {
-    const queryAddress = (req.query.walletAddress as string) || (req.query.address as string)
-
-    if (queryAddress && queryAddress.trim()) {
-      const notifications = await prisma.notification.findMany({
-        where: { wallet_address: queryAddress.trim() },
-        orderBy: { created_at: 'desc' }
+    if (!req.userId) {
+      return res.status(401).json({
+        error: 'Authentication required to access notifications.',
+        code: 'UNAUTHORIZED',
       })
-      return res.json(notifications)
     }
 
-    if (req.userId && typeof req.userId === 'string') {
-      const user = await prisma.user.findUnique({ where: { id: req.userId } })
-      if (user && user.wallet_address) {
-        const notifications = await prisma.notification.findMany({
-          where: { wallet_address: user.wallet_address },
-          orderBy: { created_at: 'desc' }
-        })
-        return res.json(notifications)
-      }
+    const user = await prisma.user.findUnique({ where: { id: req.userId } })
+    if (!user || !user.wallet_address) {
+      return res.json([])
     }
 
-    return res.json([])
+    const notifications = await prisma.notification.findMany({
+      where: { wallet_address: user.wallet_address },
+      orderBy: { created_at: 'desc' },
+    })
+    return res.json(notifications)
   } catch (err: any) {
-    console.error('Fetch notifications error:', err)
     return res.status(500).json({ error: 'Server error retrieving notifications' })
   }
 }

@@ -101,10 +101,10 @@ export default function Hero() {
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: 'easeOut' }}
-          className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-black/[0.04] border border-black/[0.08] text-xs font-semibold text-black/75 mb-6"
+          className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-semibold text-emerald-800 font-mono mb-6"
         >
-          <span className="flex h-1.5 w-1.5 rounded-full bg-black animate-pulse" />
-          Powered by Midnight Network
+          <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          MIDNIGHT • Real Blockchain Settlement
         </motion.div>
 
         {/* Hero Heading */}

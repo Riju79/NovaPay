@@ -5,9 +5,11 @@
   "main": "build/index.js",
   "scripts": {
     "build": "npx prisma generate && tsc",
-    "start": "npx prisma db push && node build/index.js",
+    "start": "node build/index.js",
+    "migrate:deploy": "npx prisma migrate deploy",
     "dev": "nodemon src/index.ts",
-    "test": "node --test test/contracts.test.js"
+    "test": "node --test test/*.test.js",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@prisma/client": "^5.10.2",

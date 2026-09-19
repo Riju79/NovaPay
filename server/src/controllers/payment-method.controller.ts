@@ -1,6 +1,8 @@
 import { Response } from 'express'
+import { Prisma } from '@prisma/client'
 import { AuthRequest } from '../middleware/auth'
 import prisma from '../config/db'
+import { toDecimal } from '../utils/money'
 
 const isValidWalletAddress = (address: string): boolean => {
   if (!address || typeof address !== 'string') return false
@@ -137,52 +139,67 @@ export const setDefaultPaymentMethod = async (req: AuthRequest, res: Response) =
  */
 export const getWalletBalances = async (req: AuthRequest, res: Response) => {
   try {
+    if (!req.userId) {
+      return res.status(401).json({ error: 'Authentication required to access wallet balance.', code: 'UNAUTHORIZED' })
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: req.userId } })
+    if (!user || !user.wallet_address) {
+      return res.json({
+        tDust: '0.00',
+        midnight: '0.00',
+        usdc: '0.00',
+        isNotFunded: true,
+      })
+    }
+
+    const authenticatedAddress = user.wallet_address.trim()
     const { address } = req.query
 
-    if (!address || typeof address !== 'string') {
-      return res.status(400).json({ error: 'Wallet address parameter is required.' })
+    if (address && typeof address === 'string' && address.trim().toLowerCase() !== authenticatedAddress.toLowerCase()) {
+      return res.status(403).json({
+        error: 'Forbidden: You cannot access balance records of other wallets.',
+        code: 'FORBIDDEN_WALLET_ACCESS',
+      })
     }
 
-    if (!isValidWalletAddress(address)) {
-      return res.status(400).json({ error: 'Invalid wallet address.' })
-    }
+    const targetAddress = authenticatedAddress
 
     // Query transactions in DB involving this wallet address
     const transactions = await prisma.transaction.findMany({
       where: {
         OR: [
-          { sender_wallet: address },
-          { recipient_wallet: address }
+          { sender_wallet: targetAddress },
+          { recipient_wallet: targetAddress }
         ],
         status: 'COMPLETED'
       }
     })
 
-    let tDustNet = 0
-    let usdcNet = 0
+    let tDustNet = new Prisma.Decimal(0)
+    let usdcNet = new Prisma.Decimal(0)
 
     for (const tx of transactions) {
-      const amt = Number(tx.amount) || 0
+      const amt = toDecimal(tx.amount)
       const curr = (tx.asset_type || 'tDUST').toUpperCase()
 
-      if (tx.recipient_wallet === address) {
-        if (curr.includes('USDC')) usdcNet += amt
-        else tDustNet += amt
-      } else if (tx.sender_wallet === address) {
-        if (curr.includes('USDC')) usdcNet -= amt
-        else tDustNet -= amt
+      if (tx.recipient_wallet === targetAddress) {
+        if (curr.includes('USDC')) usdcNet = usdcNet.add(amt)
+        else tDustNet = tDustNet.add(amt)
+      } else if (tx.sender_wallet === targetAddress) {
+        if (curr.includes('USDC')) usdcNet = usdcNet.sub(amt)
+        else tDustNet = tDustNet.sub(amt)
       }
     }
 
-    const tDustStr = tDustNet > 0 ? tDustNet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '0.00'
-    const usdcStr = usdcNet > 0 ? usdcNet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '0.00'
+    const tDustStr = tDustNet.gt(0) ? tDustNet.toFixed(4) : '0.00'
+    const usdcStr = usdcNet.gt(0) ? usdcNet.toFixed(2) : '0.00'
 
     return res.json({
       tDust: tDustStr,
       midnight: tDustStr,
-      xlm: '0.00',
       usdc: usdcStr,
-      isNotFunded: tDustNet === 0 && usdcNet === 0
+      isNotFunded: tDustNet.lte(0) && usdcNet.lte(0)
     })
   } catch (err: any) {
     console.error('Get wallet balances error:', err)

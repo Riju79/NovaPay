@@ -56,6 +56,10 @@ export class EscrowContractClient {
    * Submits a transaction via 1AM ConnectedAPI if connected, or via backend API.
    */
   public async submitEscrowTransaction(opName: string, payload: any): Promise<{ txHash: string }> {
+    if (!payload.payeeAddress && !payload.payerAddress) {
+      throw new Error('Recipient address is required for escrow transaction.')
+    }
+
     const raw1AM = getRaw1AMProvider()
     if (raw1AM) {
       const connectedApi = await getConnectedAPI(raw1AM, this.networkId)
@@ -64,7 +68,7 @@ export class EscrowContractClient {
           console.log(`[EscrowClient] Attempting native wallet transfer for ${opName}...`)
           const transferRes = await execute1AMTransfer(
             connectedApi,
-            payload.payeeAddress || payload.payerAddress || 'mn_addr_preview1_escrow',
+            payload.payeeAddress || payload.payerAddress,
             BigInt(payload.amountBaseUnits || '1000000')
           )
           if (transferRes && transferRes.tx) {
@@ -98,7 +102,10 @@ export class EscrowContractClient {
     }
 
     const data = await res.json()
-    return { txHash: data.txHash || `mn_tx_escrow_${Date.now()}` }
+    if (!data.txHash) {
+      throw new Error(`Escrow operation '${opName}' completed without valid transaction hash.`)
+    }
+    return { txHash: data.txHash }
   }
 }
 

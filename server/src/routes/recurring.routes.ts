@@ -6,13 +6,17 @@ import {
   updateSubscriptionStatus,
   handleRecurringContractAction,
 } from '../controllers/recurring.controller'
+import { authenticateToken } from '../middleware/auth'
 
 const router = Router()
 
-router.post('/records', createSubscriptionRecord)
-router.get('/records', getSubscriptionRecords)
-router.post('/records/:id/execute', executeSubscriptionPayment)
-router.patch('/records/:id/status', updateSubscriptionStatus)
-router.post('/:action', handleRecurringContractAction)
+// All recurring routes require authenticated session
+router.use(authenticateToken as any)
+
+router.post('/records', createSubscriptionRecord as any)
+router.get('/records', getSubscriptionRecords as any)
+router.post('/records/:id/execute', executeSubscriptionPayment as any)
+router.patch('/records/:id/status', updateSubscriptionStatus as any)
+router.post('/:action', handleRecurringContractAction as any)
 
 export default router

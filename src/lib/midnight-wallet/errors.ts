@@ -12,6 +12,7 @@ export type MidnightWalletErrorCode =
   | 'WALLET_NOT_SUPPORTED'
   | 'PROVIDER_ERROR'
   | 'SYNC_FAILED'
+  | 'AUTHENTICATION_FAILED'
   | 'UNKNOWN_ERROR'
 
 const ERROR_MESSAGES: Record<MidnightWalletErrorCode, string> = {
@@ -24,6 +25,7 @@ const ERROR_MESSAGES: Record<MidnightWalletErrorCode, string> = {
   WALLET_NOT_SUPPORTED: 'This wallet environment is not supported on this browser or platform.',
   PROVIDER_ERROR: 'An error occurred within the wallet extension provider.',
   SYNC_FAILED: 'Connected to wallet, but failed to synchronize full ledger data. Please try refreshing.',
+  AUTHENTICATION_FAILED: 'Wallet authentication failed. Please verify 1AM connection and try again.',
   UNKNOWN_ERROR: 'An unexpected wallet error occurred. Please try again.',
 }
 

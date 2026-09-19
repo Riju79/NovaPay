@@ -6,13 +6,14 @@ import {
   submitPaymentLinkTx
 } from '../controllers/payment-link.controller'
 import { authenticateToken } from '../middleware/auth'
+import { idempotencyMiddleware } from '../middleware/idempotency'
 
 const router = Router()
 
 // createPaymentLink is protected, getPaymentLinkById is public
-router.post('/', authenticateToken, createPaymentLink)
-router.get('/:id', getPaymentLinkById)
-router.post('/:id/prepare', preparePaymentLinkTx)
-router.post('/:id/submit', submitPaymentLinkTx)
+router.post('/', authenticateToken as any, idempotencyMiddleware as any, createPaymentLink as any)
+router.get('/:id', getPaymentLinkById as any)
+router.post('/:id/prepare', preparePaymentLinkTx as any)
+router.post('/:id/submit', idempotencyMiddleware as any, submitPaymentLinkTx as any)
 
 export default router

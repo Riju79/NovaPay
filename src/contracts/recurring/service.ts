@@ -6,6 +6,7 @@ import { recurringClient, formatSubscriptionStatus, frequencyToSeconds, secondsT
 import { CreateSubscriptionParams, SubscriptionDetails, SubscriptionStatus } from './types'
 import { TransactionManager } from '@/transactions/transactionManager'
 import { API_URL } from '@/config'
+import { getAuthHeaders } from '@/lib/auth'
 
 export class RecurringService {
   /**
@@ -213,7 +214,9 @@ export class RecurringService {
    */
   public static async fetchSubscriptions(walletAddress: string): Promise<SubscriptionDetails[]> {
     try {
-      const res = await fetch(`${API_URL}/api/recurring/records?walletAddress=${encodeURIComponent(walletAddress)}`)
+      const res = await fetch(`${API_URL}/api/recurring/records?walletAddress=${encodeURIComponent(walletAddress)}`, {
+        headers: getAuthHeaders(),
+      })
       if (res.ok) {
         const records = await res.json()
         if (Array.isArray(records)) {
