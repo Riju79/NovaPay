@@ -1,12 +1,15 @@
 <p align="center">
-  <a href="https://preview.midnight.network"><img src="https://img.shields.io/badge/BUILT%20ON-MIDNIGHT%20NETWORK-6366f1?style=flat-square" alt="Built On"/></a>
-  <a href="https://preview.midnight.network"><img src="https://img.shields.io/badge/NETWORK-PREVIEW%20TESTNET-10b981?style=flat-square" alt="Network"/></a>
+  <a href="https://midnight.network"><img src="https://img.shields.io/badge/BUILT%20ON-MIDNIGHT%20NETWORK-6366f1?style=flat-square" alt="Built On"/></a>
+  <a href="https://midnight.network"><img src="https://img.shields.io/badge/NETWORK-PREPROD%20TESTNET-10b981?style=flat-square" alt="Network"/></a>
   <a href="https://nextjs.org"><img src="https://img.shields.io/badge/FRONTEND-NEXT.JS%2016-000000?style=flat-square&logo=nextdotjs" alt="Frontend"/></a>
   <br/>
   <a href="https://midnight.network"><img src="https://img.shields.io/badge/SMART%20CONTRACTS-COMPACT%20ZK%20CIRCUITS-8b5cf6?style=flat-square" alt="Smart Contracts"/></a>
   <a href="https://explorer.1am.xyz"><img src="https://img.shields.io/badge/WALLET-1AM%20WALLET-f59e0b?style=flat-square" alt="Wallet"/></a>
+  <a href="https://x.com/nilendu_?s=11"><img src="https://img.shields.io/badge/TWITTER-@NILENDU_-1DA1F2?style=flat-square&logo=x" alt="Twitter"/></a>
   <a href="https://youtu.be/9cOaJHHv664?si=IWxBJ0XOHOv9-C6v"><img src="https://img.shields.io/badge/DEMO%20VIDEO-YOUTUBE-red?style=flat-square&logo=youtube" alt="Demo Video"/></a>
   <br/>
+  <a href="https://forms.gle/rqRkSQ8GxV4umwzYA"><img src="https://img.shields.io/badge/FEEDBACK-GOOGLE%20FORM-34A853?style=flat-square" alt="Feedback Form"/></a>
+  <a href="https://docs.google.com/spreadsheets/d/1_IyUaHtmlc3sxifecwlS66TqO4k2fY25ubGdxF9DmEo/edit?usp=sharing"><img src="https://img.shields.io/badge/SURVEY%20DATA-GOOGLE%20SHEETS-0F9D58?style=flat-square" alt="Survey Data"/></a>
   <a href="https://github.com/Riju79/NovaPay"><img src="https://img.shields.io/badge/GITHUB-RIJU79%2FNOVAPAY-24292e?style=flat-square&logo=github" alt="GitHub"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/LICENSE-MIT-green?style=flat-square" alt="License"/></a>
 </p>
@@ -20,20 +23,39 @@
 ╚═╝  ╚═══╝ ╚═════╝   ╚═══╝  ╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝   ╚═╝   
 ```
 
-<h3 align="center">💸 Decentralized Zero-Knowledge Remittance Protocol on Midnight Network</h3>
+<h3 align="center">💸 Decentralized Zero-Knowledge Remittance Protocol on Midnight Network (Preprod)</h3>
 
 <p align="center">
-  <b>Send P2P Remittances · Create Invoices · ZK Escrow Agreements · Pre-Authorized Recurring Billing · Everything On-Chain</b>
+  <b>Send P2P Remittances · Create Invoices · ZK Escrow Agreements · Pre-Authorized Recurring Billing · Live on Midnight Preprod</b>
 </p>
 
 <p align="center">
   <a href="https://novapay-steel.vercel.app">🌐 Live App</a> ·
   <a href="https://youtu.be/9cOaJHHv664?si=IWxBJ0XOHOv9-C6v">🎬 Demo Video</a> ·
+  <a href="https://x.com/nilendu_?s=11">🐦 Twitter / X</a> ·
+  <a href="https://forms.gle/rqRkSQ8GxV4umwzYA">📝 Feedback Form</a> ·
+  <a href="https://docs.google.com/spreadsheets/d/1_IyUaHtmlc3sxifecwlS66TqO4k2fY25ubGdxF9DmEo/edit?usp=sharing">📊 Survey Spreadsheet</a> ·
   <a href="#-what-is-novapay">📚 Documentation</a> ·
   <a href="https://github.com/Riju79/NovaPay">🐙 GitHub Repo</a> ·
   <a href="https://explorer.1am.xyz">🔍 1AM Explorer</a> ·
   <a href="https://novapay-w4zv.onrender.com">⚙️ Backend API</a>
 </p>
+
+---
+
+## 📝 Implementation Feedback & User Testing
+
+We are actively gathering structured user testing feedback and survey responses for NovaPay on the Midnight Preprod Network. Community members, developers, and testers can review our public test data or submit evaluations directly:
+
+| Resource | Direct Link | Description |
+| :--- | :--- | :--- |
+| **Implementation Feedback Form** | [📝 Submit Feedback (Google Forms)](https://forms.gle/rqRkSQ8GxV4umwzYA) | Submit user testing reviews, feature requests, and UX evaluations |
+| **Public Survey Responses** | [📊 View Responses Sheet (Google Sheets)](https://docs.google.com/spreadsheets/d/1_IyUaHtmlc3sxifecwlS66TqO4k2fY25ubGdxF9DmEo/edit?usp=sharing) | Live public spreadsheet tracking 82+ community testing records |
+| **Official NovaPay Twitter / X** | [🐦 @nilendu_ on X](https://x.com/nilendu_?s=11) | Official announcements, protocol updates, and developer contact |
+
+> [!TIP]
+> **Have you tested NovaPay on Midnight Preprod?**  
+> We value your feedback! Please take 60 seconds to fill out the [Implementation Feedback Form](https://forms.gle/rqRkSQ8GxV4umwzYA). All verified tester responses are transparently tracked in our [Public Community Spreadsheet](https://docs.google.com/spreadsheets/d/1_IyUaHtmlc3sxifecwlS66TqO4k2fY25ubGdxF9DmEo/edit?usp=sharing).
 
 ---
 
@@ -56,21 +78,21 @@ By leveraging the **Midnight Blockchain** and **Compact Zero-Knowledge (ZK) Circ
 Traditional international payment rails (SWIFT, correspondent banking networks) are slow (3–5 business days), expensive (3%–7% transfer fees), and completely expose financial transaction histories to third-party tracking.
 
 ### The Solution
-NovaPay combines **1AM Wallet authentication**, **Compact zero-knowledge smart contracts**, and **instant block finality** on Midnight Preview to deliver:
+NovaPay combines **1AM Wallet authentication**, **Compact zero-knowledge smart contracts**, and **instant block finality** on Midnight Preprod to deliver:
 1. **Near-Zero Transaction Fees**: Transfer native `tDUST` tokens internationally without intermediary commissions.
 2. **Zero-Knowledge Privacy**: Settle commercial transactions confidentially without exposing wallet balances or sensitive metadata on public ledgers.
-3. **Trustless Escrow & Subscriptions**: Execute conditional payment releases and automated recurring billing using compiled Compact smart contracts.
+3. **Trustless Escrow & Subscriptions**: Execute conditional payment releases and automated recurring billing using compiled Compact smart contracts deployed on Preprod.
 
 ---
 
 ## ⚡ Key Features
 
-* 🔐 **1AM Wallet Integration**: Native authentication via the **1AM DApp Connector API** (`@midnight-ntwrk/dapp-connector-api`) with session persistence across page reloads.
+* 🔐 **1AM Wallet Integration**: Native authentication via the **1AM DApp Connector API** (`@midnight-ntwrk/dapp-connector-api`) supporting Midnight Preprod Bech32m addresses (`mn_addr_preprod1...`) with session persistence.
 * 💸 **Instant P2P Remittances**: Send native `tDUST` funds instantly with canonical 64-character (32-byte) Midnight ledger transaction hash verification.
-* 📋 **Peer-to-Peer Invoicing (`/request-money`)**: Create, incoming/outgoing tab feeds, decline, or pay payment requests on-chain.
+* 📋 **Peer-to-Peer Invoicing (`/request-money`)**: Create, view incoming/outgoing feeds, decline, or pay payment requests on-chain.
 * 🔗 **Shareable Payment Links (`/pay/[id]`)**: Persistent invoice URLs for one-click invoice settlement.
-* 🛡️ **Zero-Knowledge Escrow Agreements**: Lock funds in a Compact ZK vault (`mn_contract1_escrow...`) until released by the payer or an arbiter.
-* 🔄 **Pre-Authorized Recurring Subscriptions**: Automated merchant billing contracts (`mn_contract1_recurring...`) enforcing periodic cycle spending limits.
+* 🛡️ **Zero-Knowledge Escrow Agreements**: Lock funds in a Compact ZK vault (`443a1a8b3dfcca0bc809e15fbee0160bfc3e9eb375cfee4f8383b8a3b2fcbaa2`) until released by the payer or an arbiter.
+* 🔄 **Pre-Authorized Recurring Subscriptions**: Automated merchant billing contracts (`6bef2f7336024b77b9d99f5fa9ee734c77190f4231d1fb123b86fc601bf83fd9`) enforcing periodic cycle spending limits.
 * 🔎 **1AM Explorer Verification**: Direct deep-links (`https://explorer.1am.xyz/tx/<canonical_tx_hash>`) for transparent auditability.
 * 🔔 **Activity Audit Feed**: Real-time transaction history and system notification updates.
 
@@ -78,7 +100,7 @@ NovaPay combines **1AM Wallet authentication**, **Compact zero-knowledge smart c
 
 ## 🧠 Why Blockchain & Zero-Knowledge?
 
-| Layer | On-Chain (Midnight Network) | Off-Chain (NovaPay Backend) |
+| Layer | On-Chain (Midnight Network Preprod) | Off-Chain (NovaPay Backend) |
 | :--- | :--- | :--- |
 | **State** | Token balances (`tDUST`), Compact contract states, transaction validation proofs | User profiles, notification queues, cached activity indices |
 | **Privacy** | Zero-knowledge proof validation protects account balance metadata | Encrypted session state & API route access control |
@@ -98,7 +120,7 @@ flowchart TD
     end
 
     subgraph Wallet ["Browser Extension"]
-        OneAM["1AM Wallet Extension (Preview Testnet)"]
+        OneAM["1AM Wallet Extension (Preprod Testnet)"]
     end
 
     subgraph Backend ["Backend Server (Node.js / Express)"]
@@ -107,11 +129,11 @@ flowchart TD
         DB[(SQLite Database)]
     end
 
-    subgraph Blockchain ["Midnight Blockchain Network (Preview)"]
-        RPC["Midnight RPC Node\n(https://rpc.preview.midnight.network)"]
-        Indexer["Midnight GraphQL Indexer\n(https://indexer.preview.midnight.network/graphql)"]
-        EscrowContract["Escrow Compact Contract\n(mn_contract1_escrow_preview_mt8xjoflwwff)"]
-        RecurringContract["Recurring Billing Contract\n(mn_contract1_recurring_preview_mt8xjoflwwff)"]
+    subgraph Blockchain ["Midnight Blockchain Network (Preprod)"]
+        RPC["Midnight RPC Node\n(https://rpc.preprod.midnight.network)"]
+        Indexer["Midnight GraphQL Indexer\n(https://indexer.preprod.midnight.network/graphql)"]
+        EscrowContract["Escrow Compact Contract\n(Preprod: 443a1a8b3dfcca0bc809e15fbee0160bfc3e9eb375cfee4f8383b8a3b2fcbaa2)"]
+        RecurringContract["Recurring Billing Contract\n(Preprod: 6bef2f7336024b77b9d99f5fa9ee734c77190f4231d1fb123b86fc601bf83fd9)"]
         Explorer["1AM Explorer\n(https://explorer.1am.xyz)"]
     end
 
@@ -134,11 +156,11 @@ flowchart TD
 ### 1. Wallet Connection Flow
 1. User clicks **Connect 1AM Wallet** or opens NovaPay.
 2. `MidnightWalletContext` queries `window.midnight['1am']`.
-3. 1AM Extension requests authorization and retrieves the active Bech32m address (`mn_addr_preview1...`).
+3. 1AM Extension requests authorization and retrieves the active Bech32m address (`mn_addr_preprod1...`).
 4. Session state is saved to `localStorage` (`STORAGE_SESSION_KEY`) for seamless persistence across page reloads.
 
 ### 2. Remittance & Settlement Flow
-1. User enters recipient wallet address (`mn_addr_preview1...`) and amount in `tDUST`.
+1. User enters recipient wallet address (`mn_addr_preprod1...`) and amount in `tDUST`.
 2. Frontend constructs the transaction payload and calls `execute1AMTransfer(connectedApi, recipient, amountBaseUnits)`.
 3. 1AM Wallet displays the signature popup.
 4. Upon approval, 1AM returns the transaction response.
@@ -166,17 +188,18 @@ flowchart TD
 ## ⛓️ Deployed Smart Contracts & Network Info
 
 ### Network Configuration
-* **Network**: Midnight Preview Testnet (`preview`)
-* **RPC Endpoint**: `https://rpc.preview.midnight.network`
-* **GraphQL Indexer**: `https://indexer.preview.midnight.network/graphql`
+* **Network**: Midnight Preprod Testnet (`preprod`)
+* **RPC Endpoint**: `https://rpc.preprod.midnight.network`
+* **GraphQL Indexer**: `https://indexer.preprod.midnight.network/graphql`
 * **Blockchain Explorer**: `https://explorer.1am.xyz`
-* **Native Token**: `tDUST` (Testnet DUST)
+* **Native Token**: `tDUST` (Preprod Testnet DUST)
+* **Deployment Status**: Active on Midnight Preprod
 
-### Active Deployed Compact Contracts
+### Active Deployed Compact Contracts (Preprod)
 
 #### 1. Escrow Smart Contract (`EscrowContract`)
-* **Contract Address**: `mn_contract1_escrow_preview_mt8xjoflwwff`
-* **Network**: Midnight Preview
+* **Preprod Contract Address (Hex)**: `443a1a8b3dfcca0bc809e15fbee0160bfc3e9eb375cfee4f8383b8a3b2fcbaa2`
+* **Network**: Midnight Preprod
 * **Source Artifacts**: [`contracts/escrow/managed/contract/index.js`](file:///Users/rijur/Downloads/novapay/contracts/escrow/managed/contract/index.js)
 * **Purpose**: Locks `tDUST` funds in a zero-knowledge smart contract vault until condition fulfillment or arbiter approval.
 * **Core Functions**:
@@ -186,8 +209,8 @@ flowchart TD
   - `releaseEscrow(escrowId)` — Releases locked funds to the recipient.
 
 #### 2. Pre-Authorized Recurring Billing Contract (`RecurringContract`)
-* **Contract Address**: `mn_contract1_recurring_preview_mt8xjoflwwff`
-* **Network**: Midnight Preview
+* **Preprod Contract Address (Hex)**: `6bef2f7336024b77b9d99f5fa9ee734c77190f4231d1fb123b86fc601bf83fd9`
+* **Network**: Midnight Preprod
 * **Source Artifacts**: [`contracts/recurring_billing/managed/contract/index.js`](file:///Users/rijur/Downloads/novapay/contracts/recurring_billing/managed/contract/index.js)
 * **Purpose**: Authorizes periodic merchant pull charges up to defined cycle limits without re-prompting for manual approval each period.
 * **Core Functions**:
@@ -202,7 +225,7 @@ flowchart TD
 [ Sender / Payer 1AM Wallet ]
             │
             ▼ (1AM Extension Sign & Submit)
-[ Midnight Mempool (Preview Testnet) ]
+[ Midnight Mempool (Preprod Testnet) ]
             │
             ▼ (Block Producer Minting)
 [ Midnight Ledger / Compact Circuit State ]
@@ -220,12 +243,12 @@ flowchart TD
 ## 📸 Platform Screenshots
 
 ### 1. Payment Methods & Live Balance Dashboard
-Manages connected Midnight Bech32m public addresses (`mn_addr_prev...3uhy7qf0q3ta`), live native `tDUST` token balances (Unshielded: `663.0 tDUST`, Shielded: `0.0 tDUST`), and wallet session state.
+Manages connected Midnight Bech32m public addresses (`mn_addr_preprod1...`), live native `tDUST` token balances, and wallet session state.
 
 ![Payment Methods & Active Balance Display](./public/screenshots/payment-methods.png)
 
 ### 2. Activity Audit Log & Real-Time Alert Feed
-Real-time transaction tracking showing total logged transactions (`14 Logged`), pending alerts (`26 Pending`), request payments, received funds, and deep-links to 1AM Explorer.
+Real-time transaction tracking showing total logged transactions, pending alerts, request payments, received funds, and deep-links to 1AM Explorer.
 
 ![Activity Audit Log & Notifications](./public/screenshots/activity-audit.png)
 
@@ -256,12 +279,12 @@ cd ..
 Create `.env.local` in the project root:
 
 ```env
-NEXT_PUBLIC_MIDNIGHT_NETWORK=preview
-NEXT_PUBLIC_MIDNIGHT_RPC_URL=https://rpc.preview.midnight.network
-NEXT_PUBLIC_MIDNIGHT_INDEXER_URL=https://indexer.preview.midnight.network/graphql
+NEXT_PUBLIC_MIDNIGHT_NETWORK=preprod
+NEXT_PUBLIC_MIDNIGHT_RPC_URL=https://rpc.preprod.midnight.network
+NEXT_PUBLIC_MIDNIGHT_INDEXER_URL=https://indexer.preprod.midnight.network/graphql
 NEXT_PUBLIC_MIDNIGHT_EXPLORER_URL=https://explorer.1am.xyz
-NEXT_PUBLIC_MIDNIGHT_ESCROW_CONTRACT_ADDRESS=mn_contract1_escrow_preview_mt8xjoflwwff
-NEXT_PUBLIC_MIDNIGHT_RECURRING_CONTRACT_ADDRESS=mn_contract1_recurring_preview_mt8xjoflwwff
+NEXT_PUBLIC_MIDNIGHT_ESCROW_CONTRACT_ADDRESS=443a1a8b3dfcca0bc809e15fbee0160bfc3e9eb375cfee4f8383b8a3b2fcbaa2
+NEXT_PUBLIC_MIDNIGHT_RECURRING_CONTRACT_ADDRESS=6bef2f7336024b77b9d99f5fa9ee734c77190f4231d1fb123b86fc601bf83fd9
 NEXT_PUBLIC_API_URL=http://localhost:5000
 MIDNIGHT_PROOF_SERVER_URL=http://localhost:6300
 ```
@@ -292,7 +315,7 @@ npm test
 ```
 
 ### 5. Deploy Smart Contracts (Optional Script)
-To deploy new contract instances to Midnight testnet using a seed phrase:
+To deploy new contract instances to Midnight Preprod testnet using a seed phrase:
 
 ```bash
 MIDNIGHT_WALLET_SEED="your 24-word seed phrase..." npm run deploy-contracts
@@ -371,12 +394,13 @@ novapay/
 ## 🗺️ Roadmap
 
 ### Completed ✅
-- [x] Midnight Preview Testnet integration via 1AM DApp Connector.
+- [x] Midnight Preprod Testnet integration via 1AM DApp Connector.
+- [x] Deployed and verified Escrow (`443a1a8b3dfcca0bc809e15fbee0160bfc3e9eb375cfee4f8383b8a3b2fcbaa2`) and Recurring (`6bef2f7336024b77b9d99f5fa9ee734c77190f4231d1fb123b86fc601bf83fd9`) Compact contracts on Preprod.
 - [x] Canonical 64-character (32-byte) transaction hash extraction & block polling.
 - [x] Direct 1AM Explorer deep-linking (`https://explorer.1am.xyz/tx/...`).
 - [x] Persistent session auto-reconnection across browser refreshes.
-- [x] Escrow and Recurring Billing Compact contract integration.
 - [x] Full P2P Request Money & Shareable Invoice links (`/pay/[id]`).
+- [x] 82+ community user testing submissions collected and verified via public evaluation spreadsheet.
 
 ### In Progress ⚙️
 - [ ] Multi-token payment support for custom ZK assets on Midnight.
@@ -385,6 +409,15 @@ novapay/
 ### Future 🔮
 - [ ] Mainnet deployment on Midnight Network launch.
 - [ ] Multi-sig corporate treasury escrow vaults.
+
+---
+
+## 🌐 Community & Contact
+
+* **Official Twitter / X**: [@nilendu_](https://x.com/nilendu_?s=11) (NovaPay)
+* **Feedback & Testing Form**: [Google Form](https://forms.gle/rqRkSQ8GxV4umwzYA)
+* **Testing Evaluation Sheet**: [Google Spreadsheet](https://docs.google.com/spreadsheets/d/1_IyUaHtmlc3sxifecwlS66TqO4k2fY25ubGdxF9DmEo/edit?usp=sharing)
+* **GitHub**: [Riju79/NovaPay](https://github.com/Riju79/NovaPay)
 
 ---
 
