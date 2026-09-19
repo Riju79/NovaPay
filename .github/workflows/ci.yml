@@ -26,11 +26,11 @@ jobs:
 
       - name: Verify Escrow Compact Contract Artifacts
         run: |
-          test -f contracts/escrow/managed/contract/index.js || echo "Escrow contract JS found"
+          test -f contracts/escrow/managed/contract/index.js && echo "Escrow contract JS verified"
 
       - name: Verify Recurring Billing Compact Contract Artifacts
         run: |
-          test -f contracts/recurring_billing/managed/contract/index.js || echo "Recurring billing contract JS found"
+          test -f contracts/recurring/managed/contract/index.js && echo "Recurring billing contract JS verified"
 
   # Job 2: Verify, Lint, and Test Web App (Next.js Frontend & Node Backend)
   web-app:
@@ -57,7 +57,21 @@ jobs:
           cd server
           npm ci
 
+      - name: Build Server & Generate Prisma Client
+        run: |
+          cd server
+          DATABASE_URL="file:./prisma/dev.db" npm run build
+
+      - name: Initialize Test Database
+        run: |
+          cd server
+          DATABASE_URL="file:./prisma/dev.db" npx prisma db push --skip-generate
+
       - name: Run Server Unit Tests
+        env:
+          DATABASE_URL: "file:./prisma/dev.db"
+          JWT_SECRET: "novapay_test_jwt_secret_token_32chars_minimum!"
+          NODE_ENV: "test"
         run: |
           cd server
           npm test

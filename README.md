@@ -73,21 +73,18 @@ We actively gather structured user testing feedback and survey responses for Nov
 
 Based on community feedback gathered through our testing surveys, we prioritized and shipped direct architectural, feature, and UI improvements:
 
-| Category | Community Tester Suggestion | Feedback Source | Implementation Status | Implementation Details |
-| :--- | :--- | :--- | :---: | :--- |
-| **Landing Page** | *"Create a landing page"* | Yash, Community Testers | ✅ **Implemented** | Designed and launched a dedicated, high-conversion landing page (`/`) featuring an interactive Hero, animated product scroll showcase (`ScrollImage`), zigzag feature benefits, and one-click DApp launch CTA. |
-| **UI & Styling** | *"Improve UI / improve the frontend / Clean interface"* | Pranav, Raj Patil, Snehal, Ashwini | ✅ **Implemented** | Overhauled UI with modern glassmorphism, responsive card containers, real-time balance displays, custom status badges, and polished dark-mode styling across all remittance views. |
-| **Mobile UX** | *"Improve mobile responsiveness"* | Simran Patan | ✅ **Implemented** | Added flexible responsive grid breakpoints, collapsible mobile navigation drawer, adaptive QR code generation modals, and touch-optimized input controls for all screen sizes. |
-| **Advanced Features** | *"The MVP is already good; add more advanced features in the future"* | Ankita, Community Testers | ✅ **Implemented** | Deployed on-chain **Compact ZK Escrow** (`443a1a8b...`) and **Pre-Authorized Recurring Billing** (`6bef2f73...`) contracts to Midnight Preprod, accompanied by an automated 3-way reconciliation engine. |
-| **Privacy & Security** | *"Encryption and PNG steganography concept is very interesting / Recover secret"* | Vivek, Salehaa, Krish | ✅ **Implemented** | Enforced Zero-Knowledge proof generation via Midnight Network Compact circuits, isolated client-side private key signatures via 1AM Wallet DApp connector, and confidential payload routing. |
-| **End-to-End Flow** | *"The complete flow was smooth and easy to understand / All works fine"* | Vaishnavi Raut, Karn Patil, Paras Babar | ✅ **Implemented** | Streamlined the 3-step remittance workflow (Wallet Connect → Amount Quote → 1AM Approval) with direct deep-links to [1AM Explorer](https://explorer.1am.xyz) for instant on-chain verification. |
+| Category | Community Tester Suggestion | Feedback Source | Implementation Status | Implementation Details | Verified Commit Links |
+| :--- | :--- | :--- | :---: | :--- | :--- |
+| **Landing Page** | *"Create a landing page"* | Yash, Community Testers | ✅ **Implemented** | Designed and launched a dedicated, high-conversion landing page (`/`) featuring an interactive Hero, animated product scroll showcase (`ScrollImage`), zigzag feature benefits, and one-click DApp launch CTA. | [`18de43c`](https://github.com/Riju79/NovaPay/commit/18de43c), [`f4f2f34`](https://github.com/Riju79/NovaPay/commit/f4f2f34) |
+| **UI & Styling** | *"Improve UI / improve the frontend / Clean interface"* | Pranav, Raj Patil, Snehal, Ashwini | ✅ **Implemented** | Overhauled UI with modern glassmorphism, responsive card containers, real-time balance displays, custom status badges, and polished dark-mode styling across all remittance views. | [`13c107f`](https://github.com/Riju79/NovaPay/commit/13c107f), [`80e6445`](https://github.com/Riju79/NovaPay/commit/80e6445), [`1531555`](https://github.com/Riju79/NovaPay/commit/1531555) |
+| **Mobile UX** | *"Improve mobile responsiveness"* | Simran Patan | ✅ **Implemented** | Added flexible responsive grid breakpoints, collapsible mobile navigation drawer, adaptive QR code generation modals, and touch-optimized input controls for all screen sizes. | [`eff1fe4`](https://github.com/Riju79/NovaPay/commit/eff1fe4), [`5698d52`](https://github.com/Riju79/NovaPay/commit/5698d52) |
+| **Advanced Features** | *"The MVP is already good; add more advanced features in the future"* | Ankita, Community Testers | ✅ **Implemented** | Deployed on-chain **Compact ZK Escrow** (`443a1a8b...`) and **Pre-Authorized Recurring Billing** (`6bef2f73...`) contracts to Midnight Preprod, accompanied by an automated 3-way reconciliation engine. | [`ea4499e`](https://github.com/Riju79/NovaPay/commit/ea4499e), [`2b719b8`](https://github.com/Riju79/NovaPay/commit/2b719b8), [`e8050ef`](https://github.com/Riju79/NovaPay/commit/e8050ef) |
+| **Privacy & Security** | *"Encryption and PNG steganography concept is very interesting / Recover secret"* | Vivek, Salehaa, Krish | ✅ **Implemented** | Enforced Zero-Knowledge proof generation via Midnight Network Compact circuits, isolated client-side private key signatures via 1AM Wallet DApp connector, and confidential payload routing. | [`fc099c4`](https://github.com/Riju79/NovaPay/commit/fc099c4), [`8e2b5c7`](https://github.com/Riju79/NovaPay/commit/8e2b5c7), [`27c6a7e`](https://github.com/Riju79/NovaPay/commit/27c6a7e) |
+| **End-to-End Flow** | *"The complete flow was smooth and easy to understand / All works fine"* | Vaishnavi Raut, Karn Patil, Paras Babar | ✅ **Implemented** | Streamlined the 3-step remittance workflow (Wallet Connect → Amount Quote → 1AM Approval) with direct deep-links to [1AM Explorer](https://explorer.1am.xyz) for instant on-chain verification. | [`1c3f0aa`](https://github.com/Riju79/NovaPay/commit/1c3f0aa), [`eff1fe4`](https://github.com/Riju79/NovaPay/commit/eff1fe4), [`b52d775`](https://github.com/Riju79/NovaPay/commit/b52d775) |
 
 ### 📊 Full Extracted Community Survey Records (123 Verified Submissions)
 
 Below is the complete dataset extracted directly from the [Public Survey Responses Spreadsheet](https://docs.google.com/spreadsheets/d/1_IyUaHtmlc3sxifecwlS66TqO4k2fY25ubGdxF9DmEo/edit?usp=sharing):
-
-<details>
-<summary><b>📋 Click to expand/collapse Full 123 Verified Tester Records from Google Sheets</b></summary>
 
 | # | Timestamp | Tester Name | Rating | Midnight Preprod Wallet Address | Tested Component | Feedback & Suggestions |
 | :-: | :--- | :--- | :-: | :--- | :--- | :--- |
@@ -214,8 +211,6 @@ Below is the complete dataset extracted directly from the [Public Survey Respons
 | 121 | 9/19/2026 17:50:40 | **Simran Deshmukh** | 5 ⭐ | `mn_addr_preprod1...lq5m478j` | All | All looks nice |
 | 122 | 9/19/2026 17:50:41 | **Manav Iyer** | 5 ⭐ | `mn_addr_preprod1...gqjqculu` | All | No issues found |
 | 123 | 9/19/2026 17:50:42 | **Nandini** | 5 ⭐ | `mn_addr_preprod1...gqjqculu` | Hide encrypted data in PNG | nothing to improve very helpful application |
-
-</details>
 
 ---
 
