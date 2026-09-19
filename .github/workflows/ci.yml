@@ -18,7 +18,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Install Dependencies
@@ -43,7 +43,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Install Frontend Dependencies
@@ -57,21 +57,33 @@ jobs:
           cd server
           npm ci
 
+      - name: Configure Server Environment
+        run: |
+          cat << 'EOF' > server/.env
+          NODE_ENV=test
+          PORT=5000
+          MIDNIGHT_NETWORK=preview
+          MIDNIGHT_RPC_URL=https://rpc.preview.midnight.network
+          MIDNIGHT_INDEXER_URL=https://indexer.preview.midnight.network/graphql
+          MIDNIGHT_EXPLORER_URL=https://explorer.1am.xyz
+          MIDNIGHT_ASSET_ID=tDUST
+          DATABASE_URL="file:./dev.db"
+          JWT_SECRET="novapay_test_jwt_secret_token_32chars_minimum!"
+          JWT_REFRESH_SECRET="novapay_test_jwt_refresh_secret_32chars_minimum!"
+          CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
+          EOF
+
       - name: Build Server & Generate Prisma Client
         run: |
           cd server
-          DATABASE_URL="file:./prisma/dev.db" npm run build
+          npm run build
 
       - name: Initialize Test Database
         run: |
           cd server
-          DATABASE_URL="file:./prisma/dev.db" npx prisma db push --skip-generate
+          npx prisma db push --skip-generate
 
       - name: Run Server Unit Tests
-        env:
-          DATABASE_URL: "file:./prisma/dev.db"
-          JWT_SECRET: "novapay_test_jwt_secret_token_32chars_minimum!"
-          NODE_ENV: "test"
         run: |
           cd server
           npm test
