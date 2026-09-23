@@ -252,7 +252,8 @@ export default function RequestMoneyPage() {
         throw new Error('1AM Wallet extension not detected in your browser. Please ensure 1AM extension is installed.')
       }
 
-      const connectedApi = await getConnectedAPI(raw1AM, 'preview')
+      const targetNetwork = process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preprod'
+      const connectedApi = await getConnectedAPI(raw1AM, targetNetwork)
       if (!connectedApi) {
         throw new Error('Failed to establish session with 1AM Wallet. Please unlock your 1AM extension.')
       }

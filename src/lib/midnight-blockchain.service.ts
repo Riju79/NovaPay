@@ -135,7 +135,8 @@ export class MidnightBlockchainService {
       throw new Error('1AM Wallet extension not detected.')
     }
 
-    const connectedApi = await getConnectedAPI(raw1AM, 'preview')
+    const targetNetwork = process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preprod'
+    const connectedApi = await getConnectedAPI(raw1AM, targetNetwork)
     if (!connectedApi || typeof connectedApi.makeTransfer !== 'function') {
       throw new Error('1AM Wallet did not expose makeTransfer capability on Midnight.')
     }
