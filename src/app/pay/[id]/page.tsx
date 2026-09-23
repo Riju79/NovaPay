@@ -23,7 +23,7 @@ import {
 interface PaymentLinkDetails {
   id: string
   creator_wallet: string
-  amount: number
+  amount: number | string
   asset: string
   status: string
   created_at: string
@@ -232,7 +232,7 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
 
   // Check balance validation
   const currentAsset = details.asset
-  const neededAmount = details.amount
+  const neededAmount = Number(details.amount) || 0
   const payerBalance = currentAsset === 'USDC' ? parseFloat(usdcBalance) : parseFloat(midnightBalance)
   const isInsufficient = publicKey ? payerBalance < neededAmount : false
   const isUsdcMissingTrustline = publicKey && currentAsset === 'USDC' && !hasUsdcTrustline
@@ -266,12 +266,13 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
       <main className="flex-1 max-w-xl mx-auto w-full px-6 pt-32 pb-16 relative z-10">
         <div className="bg-black/95 border border-white/10 rounded-3xl p-8 text-white shadow-2xl space-y-6">
           <div className="text-center space-y-1.5 pb-4 border-b border-white/10">
-            <span className="px-2 py-0.5 rounded text-[8px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold uppercase tracking-wider">
+            <span className="px-2 py-0.5 rounded text-[8px] bg-white/10 text-white border border-white/20 font-bold uppercase tracking-wider">
               NovaPay Quick Bill
             </span>
             <p className="text-xs text-white/40 mt-1 font-semibold font-mono">Invoice #{details.id.slice(0, 8).toUpperCase()}</p>
             <h1 className="text-4xl font-mono font-black tracking-tight text-white mt-3">
-              {details.amount.toFixed(2)} <span className="text-sm font-bold text-white/50">{details.asset}</span>
+              {(Number(details.amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+              <span className="text-sm font-bold text-white/50">{details.asset}</span>
             </h1>
           </div>
 
@@ -283,7 +284,7 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
             </div>
             <div className="flex justify-between items-center">
               <span className="text-white/40 font-semibold">Network Asset</span>
-              <span className="font-bold text-white/95">{details.asset === 'USDC' ? 'USDC Stablecoin' : 'XLM Native'}</span>
+              <span className="font-bold text-white/95">{details.asset === 'USDC' ? 'USDC Stablecoin' : `${details.asset || 'tDUST'} Native`}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-white/40 font-semibold">Created Date</span>
@@ -356,7 +357,7 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
                   <div className="bg-rose-500/15 border border-rose-500/20 rounded-xl p-3 flex gap-2 text-rose-400 text-xs">
                     <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                     <p className="font-semibold leading-relaxed">
-                      Insufficient balance to cover invoice payment of {details.amount} {details.asset}.
+                      Insufficient balance to cover invoice payment of {Number(details.amount) || 0} {details.asset}.
                     </p>
                   </div>
                 )}
@@ -466,7 +467,7 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
               <div className="w-full bg-white/[0.03] border border-white/5 rounded-2xl p-5 space-y-4 text-xs text-left">
                 <div className="flex justify-between">
                   <span className="text-white/40">Amount Settled</span>
-                  <span className="font-mono text-white/90 font-bold">{details.amount} {details.asset}</span>
+                  <span className="font-mono text-white/90 font-bold">{Number(details.amount) || 0} {details.asset}</span>
                 </div>
                 <div className="flex justify-between items-center border-t border-white/5 pt-3">
                   <span className="text-white/40">Transaction Hash</span>
