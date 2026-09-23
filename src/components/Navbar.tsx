@@ -122,8 +122,8 @@ export default function Navbar() {
         {/* Right: Network Badge & Buttons (Desktop) */}
         <div className="hidden md:flex items-center gap-3">
           {/* Midnight Network Badge */}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-medium">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 text-white text-xs font-mono font-medium">
+            <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
             <span>MIDNIGHT NETWORK</span>
           </div>
 

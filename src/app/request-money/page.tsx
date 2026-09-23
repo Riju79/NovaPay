@@ -407,7 +407,8 @@ export default function RequestMoneyPage() {
         <div className="mb-10 text-center sm:text-left">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-3xl font-extrabold tracking-tight font-sans">Request Money</h1>
-            <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-black/5 text-black border border-black/15">
+              <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse" />
               MIDNIGHT NETWORK
             </span>
           </div>
@@ -663,7 +664,7 @@ export default function RequestMoneyPage() {
                           </div>
                           <span
                             className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider ${
-                              isIncoming ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
+                              isIncoming ? 'bg-white/10 text-white border border-white/15' : 'bg-amber-500/10 text-amber-400'
                             }`}
                           >
                             {isIncoming ? 'Incoming' : 'Outgoing'}
@@ -781,9 +782,9 @@ export default function RequestMoneyPage() {
               </div>
               <div className="flex justify-between items-center border-t border-white/5 pt-3">
                 <span className="text-white/40 font-medium">Status</span>
-                <span className="inline-flex items-center gap-1 font-bold text-emerald-400 uppercase text-[9px] bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                <span className="inline-flex items-center gap-1 font-bold text-white uppercase text-[9px] bg-white/10 px-2 py-0.5 rounded-full border border-white/20">
                   <Check size={8} strokeWidth={3} />
-                  Settled on Testnet
+                  Settled on Midnight
                 </span>
               </div>
               <div className="flex justify-between items-center border-t border-white/5 pt-3">
@@ -831,7 +832,7 @@ export default function RequestMoneyPage() {
       {isPaying && payingRequest && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="bg-[#0F0F0F] border border-white/10 w-full max-w-lg rounded-3xl p-6 shadow-2xl text-white relative overflow-hidden">
-            <div className="absolute -top-20 -left-20 w-44 h-44 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -top-20 -left-20 w-44 h-44 bg-white/5 rounded-full blur-3xl pointer-events-none" />
 
             {!successTxHash ? (
               <div className="flex flex-col items-center py-8 text-center space-y-6">
@@ -860,20 +861,20 @@ export default function RequestMoneyPage() {
                 {/* Checklist logs */}
                 <div className="w-full max-w-sm bg-white/[0.02] border border-white/5 rounded-2xl p-4 text-left font-mono text-[10px] space-y-2.5 text-white/40">
                   <div className="flex items-center gap-2.5">
-                    <span className={payStep >= 1 ? 'text-emerald-400' : ''}>{payStep > 1 ? '✔' : '⚙'}</span>
+                    <span className={payStep >= 1 ? 'text-white' : ''}>{payStep > 1 ? '✔' : '⚙'}</span>
                     <span className={payStep === 1 ? 'text-white font-bold' : payStep > 1 ? 'text-white/80' : ''}>
                       Constructing payment operation & loading ledger...
                     </span>
                   </div>
                   <div className="flex items-center gap-2.5">
-                    <span className={payStep >= 2 ? 'text-emerald-400' : ''}>{payStep > 2 ? '✔' : payStep === 2 ? '⚙' : '○'}</span>
+                    <span className={payStep >= 2 ? 'text-white' : ''}>{payStep > 2 ? '✔' : payStep === 2 ? '⚙' : '○'}</span>
                     <span className={payStep === 2 ? 'text-white font-bold' : payStep > 2 ? 'text-white/80' : ''}>
                       Awaiting signature verification from 1AM Wallet...
                     </span>
                   </div>
                   <div className="flex items-center gap-2.5">
-                    <span className={payStep >= 3 ? 'text-emerald-400' : ''}>{payStep > 3 ? '✔' : payStep === 3 ? '⚙' : '○'}</span>
-                    <span className={payStep === 3 ? 'text-emerald-300 font-bold' : payStep > 3 ? 'text-white/80' : ''}>
+                    <span className={payStep >= 3 ? 'text-white' : ''}>{payStep > 3 ? '✔' : payStep === 3 ? '⚙' : '○'}</span>
+                    <span className={payStep === 3 ? 'text-white font-bold' : payStep > 3 ? 'text-white/80' : ''}>
                       Transaction Submitted: Submitting transaction envelope to Midnight network...
                     </span>
                   </div>
@@ -882,8 +883,8 @@ export default function RequestMoneyPage() {
             ) : (
               // Payment Consensus Finished State
               <div className="flex flex-col items-center space-y-6 py-6 animate-in zoom-in-95 duration-300 text-center">
-                <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                  <Check className="text-emerald-400 w-6 h-6" strokeWidth={3} />
+                <div className="w-12 h-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center shadow-lg">
+                  <Check className="text-white w-6 h-6" strokeWidth={3} />
                 </div>
                 <div className="space-y-1">
                   <h3 className="font-extrabold text-lg uppercase">Consensus Reached</h3>

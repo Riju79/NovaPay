@@ -515,8 +515,8 @@ export default function SendMoneyPage() {
         {/* Page Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 pb-6 border-b border-black/10 gap-4">
           <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 text-xs font-mono font-medium mb-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/5 border border-black/15 text-black text-xs font-mono font-medium mb-2 shadow-sm">
+              <span className="w-2 h-2 rounded-full bg-black animate-pulse" />
               MIDNIGHT NETWORK
             </div>
             <h1 className="text-3xl font-black tracking-tight text-black">Send Remittance</h1>
@@ -941,9 +941,9 @@ export default function SendMoneyPage() {
               {/* Step Content: COMPLETED */}
               {activeStep === 'COMPLETED' && (
                 <div className="space-y-4 font-mono text-xs">
-                  <div className="p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-center space-y-2">
-                    <CheckCircle2 size={36} className="text-emerald-400 mx-auto" />
-                    <h4 className="font-bold text-sm text-emerald-400">Remittance Completed Successfully</h4>
+                  <div className="p-6 rounded-2xl bg-white/10 border border-white/20 text-center space-y-2">
+                    <CheckCircle2 size={36} className="text-white mx-auto" />
+                    <h4 className="font-bold text-sm text-white">Remittance Completed Successfully</h4>
                     <p className="text-[11px] text-white/60">
                       Settled authoritatively on Midnight. Tri-party reconciliation confirmed.
                     </p>

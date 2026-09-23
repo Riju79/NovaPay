@@ -452,13 +452,13 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
           <div className="bg-[#0F0F0F] border border-white/10 w-full max-w-md rounded-2xl p-6 shadow-2xl text-white">
             <div className="flex flex-col items-center space-y-5 text-center">
-              <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shadow-lg">
-                <Check className="text-emerald-400 w-6 h-6" strokeWidth={3} />
+              <div className="w-12 h-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center shadow-lg">
+                <Check className="text-white w-6 h-6" strokeWidth={3} />
               </div>
 
               <div>
                 <h3 className="font-extrabold text-xl tracking-tight uppercase">Invoice Paid</h3>
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mt-2">
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold bg-white/10 text-white border border-white/20 mt-2">
                   Settled on Midnight
                 </span>
               </div>

@@ -101,9 +101,9 @@ export default function Hero() {
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: 'easeOut' }}
-          className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs font-semibold text-emerald-800 font-mono mb-6"
+          className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-black/5 border border-black/15 text-xs font-semibold text-black font-mono mb-6 shadow-sm"
         >
-          <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="flex h-2 w-2 rounded-full bg-black animate-pulse" />
           MIDNIGHT • Real Blockchain Settlement
         </motion.div>
 

@@ -229,12 +229,13 @@ export default function PaymentMethodsPage() {
       <main className="flex-1 max-w-5xl mx-auto w-full px-6 pt-32 pb-16 relative z-10">
         {/* Page Title */}
         <div className="mb-10">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-extrabold tracking-tight font-sans">Payment Methods</h1>
-            <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-              MIDNIGHT NETWORK
-            </span>
-          </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-3xl font-extrabold tracking-tight font-sans">Payment Methods</h1>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-black/5 text-black border border-black/15 shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse" />
+                MIDNIGHT NETWORK
+              </span>
+            </div>
           <p className="text-sm text-black/50 mt-1 font-medium font-sans">
             Connect Midnight wallets, manage default funding, and create shareable payment links.
           </p>

@@ -415,7 +415,8 @@ export default function ActivityPage() {
           <div>
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-3xl font-extrabold tracking-tight font-sans">Activity Log</h1>
-              <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-black/5 text-black border border-black/15">
+                <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse" />
                 MIDNIGHT NETWORK
               </span>
             </div>
@@ -668,7 +669,7 @@ export default function ActivityPage() {
                         <div className={`p-2.5 rounded-xl shrink-0 border mt-0.5 ${
                           isSender
                             ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
-                            : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                            : 'bg-white/10 border-white/20 text-white'
                         }`}>
                           {isSender ? <ArrowUpRight size={18} /> : <ArrowDownLeft size={18} />}
                         </div>
@@ -679,7 +680,7 @@ export default function ActivityPage() {
                             </span>
                             <span className={`px-2 py-0.5 rounded-[6px] text-[9px] font-black uppercase tracking-wide ${
                               tx.status === 'SUCCESS' || tx.status === 'CONFIRMED'
-                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/10'
+                                ? 'bg-white/10 text-white border border-white/15'
                                 : tx.status === 'FAILED'
                                   ? 'bg-rose-500/10 text-rose-400 border border-rose-500/10'
                                   : 'bg-amber-500/10 text-amber-400 border border-amber-500/10'
@@ -869,7 +870,7 @@ export default function ActivityPage() {
               <div className={`w-12 h-12 rounded-full border flex items-center justify-center shadow-lg ${
                 selectedTx.sender_wallet?.trim().toLowerCase() === publicKey?.trim().toLowerCase()
                   ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
-                  : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                  : 'bg-white/10 border-white/20 text-white'
               }`}>
                 {selectedTx.sender_wallet?.trim().toLowerCase() === publicKey?.trim().toLowerCase() ? (
                   <ArrowUpRight size={22} strokeWidth={2.5} />
@@ -885,7 +886,7 @@ export default function ActivityPage() {
                 </h3>
                 <span className={`inline-flex items-center px-3 py-0.5 rounded-full text-[9px] font-bold border mt-2 ${
                   selectedTx.status === 'SUCCESS'
-                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                    ? 'bg-white/10 text-white border-white/20'
                     : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
                 }`}>
                   {selectedTx.status === 'SUCCESS' ? 'Settled on Midnight' : 'Failed'}
@@ -1037,7 +1038,7 @@ export default function ActivityPage() {
 
                 <div className="flex justify-between items-baseline gap-4 border-t border-white/5 pt-3">
                   <span className="text-white/40">Settlement Rail</span>
-                  <span className="font-mono text-emerald-400">{(selectedRemittance.settlementRail || 'MIDNIGHT').replace('_PREVIEW', '')}</span>
+                  <span className="font-mono text-white/90">{(selectedRemittance.settlementRail || 'MIDNIGHT').replace('_PREVIEW', '')}</span>
                 </div>
 
                 {selectedRemittance.beneficiary && (
