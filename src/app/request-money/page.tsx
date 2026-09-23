@@ -4,8 +4,8 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
-import { API_URL, getExplorerTxUrl } from '@/config'
-import { getRaw1AMProvider, getConnectedAPI, execute1AMTransfer } from '@/lib/midnight-wallet'
+import { API_URL, getExplorerTxUrl, MIDNIGHT_NETWORK } from '@/config'
+import { getRaw1AMProvider, getConnectedAPI, execute1AMTransfer, isNetworkCompatible } from '@/lib/midnight-wallet'
 import {
   Share2,
   QrCode,
@@ -52,7 +52,8 @@ export default function RequestMoneyPage() {
   const token = authToken
   const publicKey = wallet?.address || null
   const isUserAuthenticated = Boolean(isConnected && authToken)
-  const isNetworkMismatch = isConnected && network ? !network.toLowerCase().includes('preview') : false
+  const targetNetwork = (MIDNIGHT_NETWORK || process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preprod').toLowerCase().trim()
+  const isNetworkMismatch = isConnected && network ? !isNetworkCompatible(targetNetwork, network) : false
 
   // Form states
   const [recipientWallet, setRecipientWallet] = useState('')
@@ -101,9 +102,7 @@ export default function RequestMoneyPage() {
     if (!token) return
     setIsLoadingRequests(true)
     try {
-      const url = publicKey
-        ? `${API_URL}/api/payment-requests?walletAddress=${encodeURIComponent(publicKey)}`
-        : `${API_URL}/api/payment-requests`
+      const url = `${API_URL}/api/payment-requests`
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       })

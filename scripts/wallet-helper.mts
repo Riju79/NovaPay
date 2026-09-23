@@ -39,12 +39,12 @@ export interface DerivedWallet {
 }
 
 /**
- * Single source of truth for Midnight Preview wallet derivation.
+ * Single source of truth for Midnight wallet derivation (Preview & Preprod).
  * Rules:
  * 1. Reads MIDNIGHT_WALLET_SEED from .env.local.
  * 2. If missing or invalid (<12 words), generates a new 24-word mnemonic and persists it to .env.local immediately.
  * 3. Never overwrites an existing valid seed.
- * 4. Deterministically derives the Preview unshielded Bech32 address (mn_addr_preview1...) and keys.
+ * 4. Deterministically derives the unshielded Bech32 address (mn_addr_preprod1... or mn_addr_preview1...) and keys.
  */
 export async function getOrDeriveWallet(): Promise<DerivedWallet> {
   const envLocalPath = path.resolve(process.cwd(), '.env.local')
@@ -52,6 +52,17 @@ export async function getOrDeriveWallet(): Promise<DerivedWallet> {
 
   let currentEnvContent = fs.existsSync(envLocalPath) ? fs.readFileSync(envLocalPath, 'utf8') : ''
   const seedMatch = currentEnvContent.match(/^MIDNIGHT_WALLET_SEED=["']?([^"'\r\n]+)["']?/m)
+
+  const networkTarget = (
+    process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK ||
+    process.env.MIDNIGHT_NETWORK ||
+    'preview'
+  ).toLowerCase()
+  const isPreprod = networkTarget === 'preprod'
+  const targetNetworkId = isPreprod ? NetworkId.NetworkId.PreProd : NetworkId.NetworkId.Preview
+  const indexerHttpUrl = isPreprod
+    ? 'https://indexer.preprod.midnight.network/api/v4/graphql'
+    : 'https://indexer.preview.midnight.network/api/v4/graphql'
 
   let mnemonic: string
   let isFreshlyGenerated = false
@@ -91,15 +102,15 @@ export async function getOrDeriveWallet(): Promise<DerivedWallet> {
     throw new Error('Key derivation failed at index 0')
   }
 
-  // Create Keystore with NetworkId.Preview
-  const keystore = createKeystore(derivedKey.key, NetworkId.NetworkId.Preview)
+  // Create Keystore with targetNetworkId
+  const keystore = createKeystore(derivedKey.key, targetNetworkId)
   const publicKeys = PublicKey.fromKeyStore(keystore)
 
   // Derive Shielded Encryption Key
   const shieldedSeed = masterSeed.subarray(0, 32)
   const SWClass = ShieldedWallet({
-    networkId: NetworkId.NetworkId.Preview,
-    indexerClientConnection: { indexerHttpUrl: 'https://indexer.preview.midnight.network/api/v4/graphql' },
+    networkId: targetNetworkId,
+    indexerClientConnection: { indexerHttpUrl },
     txHistoryStorage: new NoOpTransactionHistoryStorage()
   })
   const shieldedWallet = SWClass.startWithSeed(shieldedSeed)
@@ -133,7 +144,8 @@ export async function getOrDeriveWallet(): Promise<DerivedWallet> {
     address,
     coinPublicKeyHex,
     encryptionPublicKeyHex,
-    networkId: 'preview',
+    networkId: isPreprod ? 'preprod' : 'preview',
     isFreshlyGenerated
   }
 }
+

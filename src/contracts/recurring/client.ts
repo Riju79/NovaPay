@@ -49,7 +49,7 @@ export function secondsToFrequencyLabel(secs: number): string {
 export class RecurringContractClient {
   private networkId: string
 
-  constructor(networkId = 'preview') {
+  constructor(networkId = (process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preprod')) {
     this.networkId = networkId
   }
 

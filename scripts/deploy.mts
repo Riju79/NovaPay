@@ -127,7 +127,7 @@ import { provingProvider as wasmProvingProvider } from '@midnight-ntwrk/zkir-v2'
 import { HDWallet, Roles } from '@midnight-ntwrk/wallet-sdk-hd'
 import { createKeystore, PublicKey, UnshieldedWallet } from '@midnight-ntwrk/wallet-sdk-unshielded-wallet'
 import { NetworkId, NoOpTransactionHistoryStorage } from '@midnight-ntwrk/wallet-sdk-abstractions'
-import { DustSecretKey, LedgerParameters } from '@midnight-ntwrk/ledger-v8'
+import { DustSecretKey, LedgerParameters, LedgerState, WellFormedStrictness } from '@midnight-ntwrk/ledger-v8'
 import { DustWallet } from '@midnight-ntwrk/wallet-sdk-dust-wallet'
 import { makeWasmProvingService } from '@midnight-ntwrk/wallet-sdk-capabilities/proving'
 import * as bip39 from '@scure/bip39'
@@ -187,8 +187,14 @@ async function createProofProviderForCircuit(proofServerUrl: string, zkConfigPro
 }
 
 async function main() {
+  const networkTarget = (process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preview').toLowerCase()
+  if (networkTarget.includes('main') || networkTarget === 'mainnet') {
+    console.error('\n❌ FATAL: Mainnet deployment is strictly prohibited!')
+    process.exit(1)
+  }
+
   console.log('======================================================================')
-  console.log('🚀 NovaPay — Midnight Preview On-Chain Smart Contract Deployment')
+  console.log(`🚀 NovaPay — Midnight ${networkTarget.toUpperCase()} On-Chain Smart Contract Deployment`)
   console.log('======================================================================')
 
   // 2. Validate Mnemonic Seed Phrase
@@ -200,22 +206,21 @@ async function main() {
     process.exit(1)
   }
 
-  // 3. Network & Configuration
-  const networkTarget = process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preview'
-  if (networkTarget.toLowerCase().includes('main') || networkTarget === 'mainnet') {
-    console.error('\n❌ FATAL: Mainnet deployment is strictly prohibited!')
-    process.exit(1)
-  }
+  const isPreprod = networkTarget === 'preprod'
+  const targetNetworkId = isPreprod ? NetworkId.NetworkId.PreProd : NetworkId.NetworkId.Preview
+  setNetworkId(isPreprod ? 'preprod' : 'preview')
 
-  setNetworkId('preview')
-
-  const rpcUrl = process.env.NEXT_PUBLIC_MIDNIGHT_RPC_URL || 'https://rpc.preview.midnight.network'
-  const indexerHttpUrl = 'https://indexer.preview.midnight.network/api/v4/graphql'
-  const indexerWsUrl = 'wss://indexer.preview.midnight.network/api/v4/graphql/ws'
+  const rpcUrl = process.env.NEXT_PUBLIC_MIDNIGHT_RPC_URL || (isPreprod ? 'https://rpc.preprod.midnight.network' : 'https://rpc.preview.midnight.network')
+  const indexerHttpUrl = isPreprod
+    ? 'https://indexer.preprod.midnight.network/api/v4/graphql'
+    : 'https://indexer.preview.midnight.network/api/v4/graphql'
+  const indexerWsUrl = isPreprod
+    ? 'wss://indexer.preprod.midnight.network/api/v4/graphql/ws'
+    : 'wss://indexer.preview.midnight.network/api/v4/graphql/ws'
   const proofServerUrl = process.env.MIDNIGHT_PROOF_SERVER_URL || process.env.NEXT_PUBLIC_MIDNIGHT_PROOF_SERVER_URL || 'http://127.0.0.1:6300'
 
   console.log(`📡 Target Network:     ${networkTarget.toUpperCase()}`)
-  console.log(`🔗 Preview RPC Node:    ${rpcUrl}`)
+  console.log(`🔗 RPC Node:           ${rpcUrl}`)
   console.log(`🔍 Indexer GraphQL:     ${indexerHttpUrl}`)
   console.log(`⚡ ZK Proof Server:     ${proofServerUrl}`)
 
@@ -245,11 +250,11 @@ async function main() {
   const role = acct.selectRole(Roles.NightExternal)
   const derivedKey = role.deriveKeyAt(0)
   if (derivedKey.type !== 'keyDerived') throw new Error('Key derivation failed')
-  const keystore = createKeystore(derivedKey.key, NetworkId.NetworkId.Preview)
+  const keystore = createKeystore(derivedKey.key, targetNetworkId)
   const publicKeys = UWPublicKey.fromKeyStore(keystore)
 
   const UWClass = UnshieldedWallet({
-    networkId: NetworkId.NetworkId.Preview,
+    networkId: targetNetworkId,
     indexerClientConnection: {
       indexerHttpUrl,
       indexerWsUrl,
@@ -258,7 +263,7 @@ async function main() {
     txHistoryStorage: new NoOpTransactionHistoryStorage()
   })
   const unshieldedWallet = UWClass.startWithPublicKey(publicKeys)
-  console.log('   ⏳ Starting and synchronizing wallet with Midnight Preview indexer...')
+  console.log(`   ⏳ Starting and synchronizing wallet with Midnight ${isPreprod ? 'Preprod' : 'Preview'} indexer...`)
   await unshieldedWallet.start()
   
   console.log('   ⏳ Waiting for wallet to fully synchronize to chain tip...')
@@ -268,7 +273,7 @@ async function main() {
   } catch {
     walletState = await firstValueFrom(
       unshieldedWallet.state.pipe(
-        filter(s => Boolean(s.availableCoins && s.availableCoins.length >= 3))
+        filter(s => Boolean(s.availableCoins && s.availableCoins.length > 0))
       )
     )
   }
@@ -292,7 +297,7 @@ async function main() {
   const ledgerParams = LedgerParameters.deserialize(Buffer.from(ledgerHex, 'hex'))
 
   const dustWalletClass = DustWallet({
-    networkId: NetworkId.NetworkId.Preview,
+    networkId: targetNetworkId,
     indexerClientConnection: {
       indexerHttpUrl,
       indexerWsUrl,
@@ -301,24 +306,45 @@ async function main() {
     txHistoryStorage: new NoOpTransactionHistoryStorage(),
     costModel: ledgerParams.transactionCostModel,
     costParameters: { feeBlocksMargin: 5 },
-    batchUpdates: { size: 2000, spacing: 0, timeout: 50 } as any
+    batchUpdates: { size: 10000, spacing: 0, timeout: 5 } as any
   })
 
-  const dustWallet = dustWalletClass.startWithSecretKey(dustSecretKey, ledgerParams.dust)
-  await dustWallet.start(dustSecretKey)
+  const dustCacheFile = path.resolve(process.cwd(), `cache/dust-wallet-state-${isPreprod ? 'preprod' : 'preview'}.json`)
+  let dustWallet: any
+  if (fs.existsSync(dustCacheFile)) {
+    console.log(`   💾 Restoring Dust Wallet from local cache (${path.basename(dustCacheFile)})...`)
+    dustWallet = dustWalletClass.restore(fs.readFileSync(dustCacheFile, 'utf8'))
+    await dustWallet.start(dustSecretKey)
+  } else {
+    console.log(`   ⏳ Starting fresh Dust Wallet on Midnight ${networkTarget.toUpperCase()}...`)
+    dustWallet = dustWalletClass.startWithSecretKey(dustSecretKey, ledgerParams.dust)
+    await dustWallet.start(dustSecretKey)
+  }
 
-  console.log('   ⏳ Waiting for dust wallet to sync available dust coins...')
-  const dustState = await firstValueFrom(
-    dustWallet.state.pipe(
-      filter(s => Boolean(s.availableCoins && s.availableCoins.length > 0))
+  console.log('   ⏳ Waiting for dust wallet state...')
+  let dustState: any
+  try {
+    dustState = await firstValueFrom(
+      dustWallet.state.pipe(
+        filter(s => Boolean(s.availableCoins && s.availableCoins.length > 0))
+      )
     )
-  )
+  } catch {
+    dustState = await dustWallet.waitForSyncedState()
+  }
   console.log(`   🪙 Dust Wallet Synced! Available Coins: ${dustState.availableCoins.length}, Balance: ${dustState.balance(new Date())}`)
+  try {
+    fs.writeFileSync(dustCacheFile, dustState.serialize(), 'utf8')
+    console.log(`   💾 Updated local dust cache at ${path.basename(dustCacheFile)}`)
+  } catch (err) {
+    console.warn('   ⚠️ Could not cache dust state:', err)
+  }
 
   // 6. Connect to RPC Node
-  console.log('\n🌐 Connecting to Midnight Preview RPC Node...')
+  console.log(`\n🌐 Connecting to Midnight ${isPreprod ? 'Preprod' : 'Preview'} RPC Node...`)
   const { ApiPromise, WsProvider } = await import('@polkadot/api')
-  const wsRpcUrl = process.env.MIDNIGHT_WS_RPC_URL || 'wss://rpc.preview.midnight.network'
+  const defaultWsRpc = isPreprod ? 'wss://rpc.preprod.midnight.network' : 'wss://rpc.preview.midnight.network'
+  const wsRpcUrl = process.env.MIDNIGHT_WS_RPC_URL || defaultWsRpc
   const wsProvider = new WsProvider(wsRpcUrl)
   const polkadotApi = await ApiPromise.create({ provider: wsProvider, noInitWarn: true })
   console.log(`✅ Connected to Midnight RPC Node: Genesis ${polkadotApi.genesisHash.toHex().slice(0, 10)}...`)
@@ -353,7 +379,8 @@ async function main() {
 
       // Step B: Balance DUST transaction fees with dust wallet
       console.log('   🪙  Balancing DUST fees with dust wallet...')
-      const feeBalancingTx = await dustWallet.balanceTransactions(dustSecretKey, [baseTx], targetTtl)
+      const now = new Date()
+      const feeBalancingTx = await dustWallet.balanceTransactions(dustSecretKey, [baseTx], targetTtl, now)
       console.log('       Fee balancing tx serialized length:', feeBalancingTx.serialize().length)
 
       // Step C: Sign base transaction with deployer keystore
@@ -364,23 +391,33 @@ async function main() {
       console.log('   ✍️  Signing and proving fee balancing transaction...')
       const signedFeeTx = await unshieldedWallet.signUnprovenTransaction(feeBalancingTx, (data: Uint8Array) => keystore.signData(data))
       const unboundFeeTx = await provingService.prove(signedFeeTx)
-      const finalizedFeeTx = unboundFeeTx.bind()
-      console.log('       Finalized fee tx serialized length:', finalizedFeeTx.serialize().length)
+      console.log('       Unbound fee tx serialized length:', unboundFeeTx.serialize().length)
 
-      // Step E: Finalize base transaction by calling .bind()
-      const finalizedBaseTx = signedBaseTx.bind()
-      console.log('       Finalized base tx serialized length:', finalizedBaseTx.serialize().length)
+      // Step E: Merge unbound base and unbound fee balancing transactions BEFORE binding
+      console.log('   🔄  Merging unbound base transaction and unbound fee balancing transaction...')
+      const mergedUnboundTx = signedBaseTx.merge(unboundFeeTx)
+      console.log('       Merged unbound tx length:', mergedUnboundTx.serialize().length)
 
-      // Step F: Merge base and fee balancing transactions
-      const finalizedTx = finalizedBaseTx.merge(finalizedFeeTx)
-      console.log(`   🎉 Transaction Finalized! Identifiers: ${finalizedTx.identifiers().join(', ')}`)
+      // Step F: Bind the unified merged transaction into a canonical finalized transaction
+      console.log('   🔒  Binding unified merged transaction...')
+      const finalizedTx = mergedUnboundTx.bind()
+      console.log('       Finalized transaction serialized length:', finalizedTx.serialize().length)
+
+      // Step G: Validate well-formedness and canonical normalization against ledger rules
+      const networkName = isPreprod ? 'preprod' : 'preview'
+      const blankState = LedgerState.blank(networkName)
+      const strictness = new WellFormedStrictness()
+      console.log(`   🧪  Validating canonical transaction form with wellFormed (${networkName})...`)
+      finalizedTx.wellFormed(blankState, strictness, new Date())
+      console.log('   ✅  Transaction is CANONICALLY WELL FORMED & NORMALIZED!')
+      console.log(`   🎉  Transaction Finalized! Identifiers: ${finalizedTx.identifiers().join(', ')}`)
       return finalizedTx
     }
   }
 
   const midnightProvider = {
     submitTx: async (tx: any): Promise<string> => {
-      console.log('   📤 Submitting transaction to Midnight Preview blockchain...')
+      console.log(`   📤 Submitting transaction to Midnight ${networkTarget.toUpperCase()} blockchain...`)
       const txIdentifiers = tx.identifiers ? tx.identifiers() : []
       const txId = txIdentifiers.length > 0 ? txIdentifiers[0] : ''
       const serializedHex = Buffer.from(tx.serialize()).toString('hex')
@@ -390,6 +427,7 @@ async function main() {
       const ext = polkadotApi.tx.midnight.sendMnTransaction(`0x${serializedHex}`)
       return new Promise<string>((resolve, reject) => {
         ext.send((result: any) => {
+          console.log(`       Extrinsic status: ${result.status.type}`)
           if (result.status.isInBlock || result.status.isFinalized) {
             const blockHash = result.status.isInBlock ? result.status.asInBlock.toHex() : (result.status.isFinalized ? result.status.asFinalized.toHex() : '')
             console.log(`   ✅ Transaction accepted into block ${blockHash}! TxId: ${txId}`)
@@ -404,7 +442,7 @@ async function main() {
 
   // 8. Deploy Escrow Smart Contract
   console.log('\n──────────────────────────────────────────────────────────────────────')
-  console.log('🚀 [1/2] Deploying Escrow Contract to Midnight Preview...')
+  console.log(`🚀 [1/2] Deploying Escrow Contract to Midnight ${networkTarget.toUpperCase()}...`)
   console.log('──────────────────────────────────────────────────────────────────────')
   const escrowManagedDir = path.resolve(process.cwd(), 'contracts/escrow/managed')
   const escrowZkConfigProvider = new NodeZkConfigProvider<'createEscrow' | 'fundEscrow' | 'lockEscrow' | 'releaseEscrow' | 'refundEscrow' | 'cancelEscrow'>(
@@ -441,7 +479,7 @@ async function main() {
 
   // 9. Deploy Recurring Smart Contract
   console.log('\n──────────────────────────────────────────────────────────────────────')
-  console.log('🚀 [2/2] Deploying Recurring Contract to Midnight Preview...')
+  console.log(`🚀 [2/2] Deploying Recurring Contract to Midnight ${networkTarget.toUpperCase()}...`)
   console.log('──────────────────────────────────────────────────────────────────────')
   const recurringManagedDir = path.resolve(process.cwd(), 'contracts/recurring/managed')
   const recurringZkConfigProvider = new NodeZkConfigProvider<'createSubscription' | 'executePayment' | 'pauseSubscription' | 'resumeSubscription' | 'cancelSubscription'>(
@@ -478,11 +516,20 @@ async function main() {
   // 10. Update Configuration Files
   console.log('\n📝 Updating environment configuration files with REAL deployed on-chain addresses...')
   updateEnvFile(envLocalPath, 'NEXT_PUBLIC_MIDNIGHT_ESCROW_CONTRACT_ADDRESS', escrowContractAddress)
+  updateEnvFile(envLocalPath, 'NEXT_PUBLIC_ESCROW_CONTRACT_ADDRESS', escrowContractAddress)
   updateEnvFile(envLocalPath, 'NEXT_PUBLIC_MIDNIGHT_RECURRING_CONTRACT_ADDRESS', recurringContractAddress)
+  updateEnvFile(envLocalPath, 'NEXT_PUBLIC_RECURRING_CONTRACT_ADDRESS', recurringContractAddress)
   updateEnvFile(envLocalPath, 'MIDNIGHT_DEPLOYER_ADDRESS', deployerUnshieldedAddress)
 
   updateEnvFile(serverEnvPath, 'MIDNIGHT_ESCROW_CONTRACT_ADDRESS', escrowContractAddress)
   updateEnvFile(serverEnvPath, 'MIDNIGHT_RECURRING_CONTRACT_ADDRESS', recurringContractAddress)
+  updateEnvFile(serverEnvPath, 'MIDNIGHT_DEPLOYER_ADDRESS', deployerUnshieldedAddress)
+
+  // Persist updated dust cache
+  try {
+    const finalDustState = await firstValueFrom(dustWallet.state)
+    fs.writeFileSync(dustCacheFile, finalDustState.serialize(), 'utf8')
+  } catch {}
 
   // Stop background services
   await dustWallet.stop()
@@ -490,7 +537,7 @@ async function main() {
   await polkadotApi.disconnect()
 
   console.log('\n======================================================================')
-  console.log('✅ ALL CONTRACTS SUCCESSFULLY DEPLOYED TO MIDNIGHT PREVIEW!')
+  console.log(`✅ ALL CONTRACTS SUCCESSFULLY DEPLOYED TO MIDNIGHT ${networkTarget.toUpperCase()}!`)
   console.log('======================================================================')
   console.log(`Escrow Contract:    ${escrowContractAddress}`)
   console.log(`Recurring Contract: ${recurringContractAddress}`)

@@ -13,9 +13,10 @@ import {
   getRaw1AMProvider,
   extractMidnightAddresses,
   extractMidnightBalances,
+  isNetworkCompatible,
 } from '../lib/midnight-wallet'
 
-import { API_URL } from '../config'
+import { API_URL, MIDNIGHT_NETWORK } from '../config'
 import {
   getStoredAuthToken,
   setStoredAuthToken,
@@ -136,7 +137,7 @@ export function MidnightWalletProvider({ children }: { children: React.ReactNode
           signal: controller.signal,
           body: JSON.stringify({
             address,
-            network: 'preview',
+            network: (MIDNIGHT_NETWORK || process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preprod').toLowerCase().trim(),
           }),
         }).catch((fetchErr) => {
           console.warn('[1AM Auth] Challenge fetch failed or timed out:', fetchErr?.message)
@@ -200,7 +201,7 @@ export function MidnightWalletProvider({ children }: { children: React.ReactNode
             challengeId,
             address,
             signature,
-            network: 'preview',
+            network: (MIDNIGHT_NETWORK || process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preprod').toLowerCase().trim(),
             shieldedAddress,
             unshieldedAddress,
           }),
@@ -422,10 +423,11 @@ export function MidnightWalletProvider({ children }: { children: React.ReactNode
           .then(async (session) => {
             if (session && session.connected) {
               // Verify network
-              if (session.networkId && session.networkId.toLowerCase() !== 'preview') {
+              const targetNetwork = (MIDNIGHT_NETWORK || process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preprod').toLowerCase().trim()
+              if (session.networkId && !isNetworkCompatible(targetNetwork, session.networkId)) {
                 throw new MidnightWalletError(
                   'WRONG_NETWORK',
-                  `1AM Wallet network is '${session.networkId}', but Midnight is required.`
+                  `1AM Wallet network is '${session.networkId}', but Midnight ${targetNetwork} is required.`
                 )
               }
 
@@ -484,12 +486,13 @@ export function MidnightWalletProvider({ children }: { children: React.ReactNode
         const extracted = await extractMidnightAddresses(raw1AM, raw1AM)
 
         // Network mismatch check
-        if (extracted.networkId && extracted.networkId.toLowerCase() !== 'preview') {
-          console.warn('[MidnightWallet] Network switch to non-preview detected:', extracted.networkId)
+        const targetNetwork = (MIDNIGHT_NETWORK || process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preprod').toLowerCase().trim()
+        if (extracted.networkId && !isNetworkCompatible(targetNetwork, extracted.networkId)) {
+          console.warn(`[MidnightWallet] Network switch to non-${targetNetwork} detected:`, extracted.networkId)
           setError(
             new MidnightWalletError(
               'WRONG_NETWORK',
-              `1AM Wallet was switched to '${extracted.networkId}'. Please reconnect on Midnight.`
+              `1AM Wallet was switched to '${extracted.networkId}'. Please reconnect on Midnight ${targetNetwork}.`
             )
           )
           clearStoredAuthTokens()
@@ -600,11 +603,12 @@ export function MidnightWalletProvider({ children }: { children: React.ReactNode
         // 1. Connect to 1AM Wallet
         const session = await connectWallet(provider)
 
-        // 2. Validate network is strictly Preview
-        if (session.networkId && session.networkId.toLowerCase() !== 'preview') {
+        // 2. Validate network is compatible with target network (e.g. Preprod)
+        const targetNetwork = (MIDNIGHT_NETWORK || process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preprod').toLowerCase().trim()
+        if (session.networkId && !isNetworkCompatible(targetNetwork, session.networkId)) {
           throw new MidnightWalletError(
             'WRONG_NETWORK',
-            `1AM Wallet is connected to '${session.networkId}', but Midnight is required. Please switch networks in your 1AM wallet.`
+            `1AM Wallet is connected to '${session.networkId}', but Midnight ${targetNetwork} is required. Please switch networks in your 1AM wallet.`
           )
         }
 

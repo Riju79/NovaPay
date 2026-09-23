@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
-import { API_URL } from '@/config'
+import { API_URL, MIDNIGHT_NETWORK } from '@/config'
+import { isNetworkCompatible } from '@/lib/midnight-wallet/utils'
 import {
   Wallet as WalletIcon,
   CreditCard,
@@ -53,7 +54,8 @@ export default function PaymentMethodsPage() {
   const usdcBalance = balance ? balance.usdc : '0.00'
   const isNotFunded = balance ? balance.isNotFunded : false
   const isUserAuthenticated = Boolean(isConnected && authToken)
-  const isNetworkMismatch = isConnected && network ? !network.toLowerCase().includes('preview') : false
+  const targetNetwork = (MIDNIGHT_NETWORK || process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preprod').toLowerCase().trim()
+  const isNetworkMismatch = isConnected && network ? !isNetworkCompatible(targetNetwork, network) : false
 
   // State
   const [methods, setMethods] = useState<PaymentMethod[]>([])

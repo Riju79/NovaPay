@@ -78,7 +78,7 @@ Based on community feedback gathered through our testing surveys, we prioritized
 | **Landing Page** | *"Create a landing page"* | Yash, Community Testers | ✅ **Implemented** | Designed and launched a dedicated, high-conversion landing page (`/`) featuring an interactive Hero, animated product scroll showcase (`ScrollImage`), zigzag feature benefits, and one-click DApp launch CTA. | [`18de43c`](https://github.com/Riju79/NovaPay/commit/18de43c), [`f4f2f34`](https://github.com/Riju79/NovaPay/commit/f4f2f34) |
 | **UI & Styling** | *"Improve UI / improve the frontend / Clean interface"* | Pranav, Raj Patil, Snehal, Ashwini | ✅ **Implemented** | Overhauled UI with modern glassmorphism, responsive card containers, real-time balance displays, custom status badges, and polished dark-mode styling across all remittance views. | [`13c107f`](https://github.com/Riju79/NovaPay/commit/13c107f), [`80e6445`](https://github.com/Riju79/NovaPay/commit/80e6445), [`1531555`](https://github.com/Riju79/NovaPay/commit/1531555) |
 | **Mobile UX** | *"Improve mobile responsiveness"* | Simran Patan | ✅ **Implemented** | Added flexible responsive grid breakpoints, collapsible mobile navigation drawer, adaptive QR code generation modals, and touch-optimized input controls for all screen sizes. | [`eff1fe4`](https://github.com/Riju79/NovaPay/commit/eff1fe4), [`5698d52`](https://github.com/Riju79/NovaPay/commit/5698d52) |
-| **Advanced Features** | *"The MVP is already good; add more advanced features in the future"* | Ankita, Community Testers | ✅ **Implemented** | Deployed on-chain **Compact ZK Escrow** (`443a1a8b...`) and **Pre-Authorized Recurring Billing** (`6bef2f73...`) contracts to Midnight Preprod, accompanied by an automated 3-way reconciliation engine. | [`ea4499e`](https://github.com/Riju79/NovaPay/commit/ea4499e), [`2b719b8`](https://github.com/Riju79/NovaPay/commit/2b719b8), [`e8050ef`](https://github.com/Riju79/NovaPay/commit/e8050ef) |
+| **Advanced Features** | *"The MVP is already good; add more advanced features in the future"* | Ankita, Community Testers | ✅ **Implemented** | Deployed on-chain **Compact ZK Escrow** (`a8239962...`) and **Pre-Authorized Recurring Billing** (`4eb12594...`) contracts to Midnight Preprod, accompanied by an automated 3-way reconciliation engine. | [`ea4499e`](https://github.com/Riju79/NovaPay/commit/ea4499e), [`2b719b8`](https://github.com/Riju79/NovaPay/commit/2b719b8), [`e8050ef`](https://github.com/Riju79/NovaPay/commit/e8050ef) |
 | **Privacy & Security** | *"Encryption and PNG steganography concept is very interesting / Recover secret"* | Vivek, Salehaa, Krish | ✅ **Implemented** | Enforced Zero-Knowledge proof generation via Midnight Network Compact circuits, isolated client-side private key signatures via 1AM Wallet DApp connector, and confidential payload routing. | [`fc099c4`](https://github.com/Riju79/NovaPay/commit/fc099c4), [`8e2b5c7`](https://github.com/Riju79/NovaPay/commit/8e2b5c7), [`27c6a7e`](https://github.com/Riju79/NovaPay/commit/27c6a7e) |
 | **End-to-End Flow** | *"The complete flow was smooth and easy to understand / All works fine"* | Vaishnavi Raut, Karn Patil, Paras Babar | ✅ **Implemented** | Streamlined the 3-step remittance workflow (Wallet Connect → Amount Quote → 1AM Approval) with direct deep-links to [1AM Explorer](https://explorer.1am.xyz) for instant on-chain verification. | [`1c3f0aa`](https://github.com/Riju79/NovaPay/commit/1c3f0aa), [`eff1fe4`](https://github.com/Riju79/NovaPay/commit/eff1fe4), [`b52d775`](https://github.com/Riju79/NovaPay/commit/b52d775) |
 
@@ -246,8 +246,8 @@ NovaPay combines **1AM Wallet authentication**, **Compact zero-knowledge smart c
 * 💸 **Instant P2P Remittances**: Send native `tDUST` funds instantly with canonical 64-character (32-byte) Midnight ledger transaction hash verification.
 * 📋 **Peer-to-Peer Invoicing (`/request-money`)**: Create, view incoming/outgoing feeds, decline, or pay payment requests on-chain.
 * 🔗 **Shareable Payment Links (`/pay/[id]`)**: Persistent invoice URLs for one-click invoice settlement.
-* 🛡️ **Zero-Knowledge Escrow Agreements**: Lock funds in a Compact ZK vault (`443a1a8b3dfcca0bc809e15fbee0160bfc3e9eb375cfee4f8383b8a3b2fcbaa2`) until released by the payer or an arbiter.
-* 🔄 **Pre-Authorized Recurring Subscriptions**: Automated merchant billing contracts (`6bef2f7336024b77b9d99f5fa9ee734c77190f4231d1fb123b86fc601bf83fd9`) enforcing periodic cycle spending limits.
+* 🛡️ **Zero-Knowledge Escrow Agreements**: Lock funds in a Compact ZK vault (`a8239962710fb4bd1c9c1c5a88582bf51588b8fca678591db53f70600dc64ed2`) until released by the payer or an arbiter.
+* 🔄 **Pre-Authorized Recurring Subscriptions**: Automated merchant billing contracts (`4eb12594c2ec128791af83d82aa54742009710aec55373de2106cf8781e34fa2`) enforcing periodic cycle spending limits.
 * 🔎 **1AM Explorer Verification**: Direct deep-links (`https://explorer.1am.xyz/tx/<canonical_tx_hash>`) for transparent auditability.
 * 🔔 **Activity Audit Feed**: Real-time transaction history and system notification updates.
 
@@ -287,8 +287,8 @@ flowchart TD
     subgraph Blockchain ["Midnight Blockchain Network (Preprod)"]
         RPC["Midnight RPC Node\n(https://rpc.preprod.midnight.network)"]
         Indexer["Midnight GraphQL Indexer\n(https://indexer.preprod.midnight.network/graphql)"]
-        EscrowContract["Escrow Compact Contract\n(Preprod: 443a1a8b3dfcca0bc809e15fbee0160bfc3e9eb375cfee4f8383b8a3b2fcbaa2)"]
-        RecurringContract["Recurring Billing Contract\n(Preprod: 6bef2f7336024b77b9d99f5fa9ee734c77190f4231d1fb123b86fc601bf83fd9)"]
+        EscrowContract["Escrow Compact Contract\n(Preprod: a8239962710fb4bd1c9c1c5a88582bf51588b8fca678591db53f70600dc64ed2)"]
+        RecurringContract["Recurring Billing Contract\n(Preprod: 4eb12594c2ec128791af83d82aa54742009710aec55373de2106cf8781e34fa2)"]
         Explorer["1AM Explorer\n(https://explorer.1am.xyz)"]
     end
 
@@ -438,8 +438,8 @@ NEXT_PUBLIC_MIDNIGHT_NETWORK=preprod
 NEXT_PUBLIC_MIDNIGHT_RPC_URL=https://rpc.preprod.midnight.network
 NEXT_PUBLIC_MIDNIGHT_INDEXER_URL=https://indexer.preprod.midnight.network/graphql
 NEXT_PUBLIC_MIDNIGHT_EXPLORER_URL=https://explorer.1am.xyz
-NEXT_PUBLIC_MIDNIGHT_ESCROW_CONTRACT_ADDRESS=443a1a8b3dfcca0bc809e15fbee0160bfc3e9eb375cfee4f8383b8a3b2fcbaa2
-NEXT_PUBLIC_MIDNIGHT_RECURRING_CONTRACT_ADDRESS=6bef2f7336024b77b9d99f5fa9ee734c77190f4231d1fb123b86fc601bf83fd9
+NEXT_PUBLIC_MIDNIGHT_ESCROW_CONTRACT_ADDRESS=a8239962710fb4bd1c9c1c5a88582bf51588b8fca678591db53f70600dc64ed2
+NEXT_PUBLIC_MIDNIGHT_RECURRING_CONTRACT_ADDRESS=4eb12594c2ec128791af83d82aa54742009710aec55373de2106cf8781e34fa2
 NEXT_PUBLIC_API_URL=http://localhost:5000
 MIDNIGHT_PROOF_SERVER_URL=http://localhost:6300
 ```
@@ -570,7 +570,7 @@ novapay/
 
 ### Completed ✅
 - [x] Midnight Preprod Testnet integration via 1AM DApp Connector.
-- [x] Deployed and verified Escrow (`443a1a8b3dfcca0bc809e15fbee0160bfc3e9eb375cfee4f8383b8a3b2fcbaa2`) and Recurring (`6bef2f7336024b77b9d99f5fa9ee734c77190f4231d1fb123b86fc601bf83fd9`) Compact contracts on Preprod.
+- [x] Deployed and verified Escrow (`a8239962710fb4bd1c9c1c5a88582bf51588b8fca678591db53f70600dc64ed2`) and Recurring (`4eb12594c2ec128791af83d82aa54742009710aec55373de2106cf8781e34fa2`) Compact contracts on Preprod.
 - [x] Canonical 64-character (32-byte) transaction hash extraction & block polling.
 - [x] Direct 1AM Explorer deep-linking (`https://explorer.1am.xyz/tx/...`).
 - [x] Persistent session auto-reconnection across browser refreshes.

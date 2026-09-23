@@ -42,12 +42,12 @@ export const createChallenge = async (req: Request, res: Response) => {
     }
 
     const cleanAddress = address.trim()
-    const targetNetwork = (network || 'preview').toLowerCase().trim()
+    const targetNetwork = (network || serverConfig.midnight.network || 'preprod').toLowerCase().trim()
 
-    // Explicit network verification
-    if (targetNetwork !== 'preview') {
+    // Explicit network verification (reject mainnet)
+    if (targetNetwork.includes('main') || targetNetwork === 'mainnet') {
       return res.status(400).json({
-        error: `Network mismatch: Application requires 'preview'. Got '${targetNetwork}'.`,
+        error: `Network mismatch: Midnight Mainnet is prohibited. Got '${targetNetwork}'.`,
         code: 'INVALID_NETWORK',
       })
     }
@@ -57,13 +57,13 @@ export const createChallenge = async (req: Request, res: Response) => {
     const issuedAt = Date.now()
     const expiresAt = issuedAt + serverConfig.auth.challengeTtlMs
     const domain = 'novapay.finance'
-    const statement = `Sign this message to authenticate with NovaPay on Midnight Preview.\nNonce: ${nonce}\nDomain: ${domain}\nAddress: ${cleanAddress}`
+    const statement = `Sign this message to authenticate with NovaPay on Midnight ${targetNetwork.toUpperCase()}.\nNonce: ${nonce}\nDomain: ${domain}\nAddress: ${cleanAddress}`
 
     const challengeRecord: StoredChallenge = {
       challengeId,
       nonce,
       address: cleanAddress,
-      network: 'preview',
+      network: targetNetwork,
       statement,
       domain,
       issuedAt,
@@ -78,7 +78,7 @@ export const createChallenge = async (req: Request, res: Response) => {
       statement,
       domain,
       address: cleanAddress,
-      network: 'preview',
+      network: targetNetwork,
       issuedAt: new Date(issuedAt).toISOString(),
       expiresAt: new Date(expiresAt).toISOString(),
     })
@@ -106,12 +106,12 @@ export const verifyWalletAuth = async (req: Request, res: Response) => {
     }
 
     const cleanAddress = address.trim()
-    const clientNetwork = (network || 'preview').toLowerCase().trim()
+    const clientNetwork = (network || serverConfig.midnight.network || 'preprod').toLowerCase().trim()
 
-    // Network check
-    if (clientNetwork !== 'preview') {
+    // Network check (reject mainnet)
+    if (clientNetwork.includes('main') || clientNetwork === 'mainnet') {
       return res.status(400).json({
-        error: `Network mismatch: Wallet must be connected to 'preview'. Received '${clientNetwork}'.`,
+        error: `Network mismatch: Midnight Mainnet is prohibited. Received '${clientNetwork}'.`,
         code: 'WRONG_NETWORK',
       })
     }
@@ -156,71 +156,83 @@ export const verifyWalletAuth = async (req: Request, res: Response) => {
     }
 
     // 3. User & Wallet Upsert
+    const candidateAddresses = [cleanAddress, shieldedAddress, unshieldedAddress]
+      .filter((a): a is string => Boolean(a && typeof a === 'string' && a.trim().length > 0))
+      .map((a) => a.trim())
+
     const addressHash = crypto.createHash('sha256').update(cleanAddress.toLowerCase()).digest('hex').slice(0, 24)
-    const uniqueEmail = `1am_${addressHash}@novapay.preview`
+    const uniqueEmail = `1am_${addressHash}@novapay.${clientNetwork}`
 
     let user = await prisma.user.findFirst({
       where: {
         OR: [
-          { wallet_address: cleanAddress },
+          { wallet_address: { in: candidateAddresses } },
           { email: uniqueEmail },
+          { wallets: { some: { address: { in: candidateAddresses } } } },
+          { wallets: { some: { shielded_address: { in: candidateAddresses } } } },
+          { wallets: { some: { unshielded_address: { in: candidateAddresses } } } },
         ],
         deleted_at: null,
       },
+      include: { wallets: true },
     })
+
+    const primaryAddress = unshieldedAddress || cleanAddress
 
     if (!user) {
       user = await prisma.user.create({
         data: {
-          wallet_address: cleanAddress,
+          wallet_address: primaryAddress,
           wallet_connected: true,
           full_name: `Midnight User (${cleanAddress.slice(0, 8)}...${cleanAddress.slice(-4)})`,
           email: uniqueEmail,
           password_hash: crypto.randomBytes(32).toString('hex'),
           email_verified: false,
         },
+        include: { wallets: true },
       })
     } else {
       user = await prisma.user.update({
         where: { id: user.id },
         data: {
-          wallet_address: cleanAddress,
           wallet_connected: true,
-          email: uniqueEmail,
+        },
+        include: { wallets: true },
+      })
+    }
+
+    // Ensure all candidate addresses are linked to this user in Wallet table
+    for (const addr of candidateAddresses) {
+      await prisma.wallet.upsert({
+        where: {
+          address: addr,
+        },
+        update: {
+          user_id: user.id,
+          shielded_address: shieldedAddress || (addr.includes('shield') ? addr : null),
+          unshielded_address: unshieldedAddress || (!addr.includes('shield') ? addr : null),
+          network: clientNetwork.toUpperCase(),
+          status: 'ACTIVE',
+          deleted_at: null,
+        },
+        create: {
+          user_id: user.id,
+          address: addr,
+          shielded_address: shieldedAddress || (addr.includes('shield') ? addr : null),
+          unshielded_address: unshieldedAddress || (!addr.includes('shield') ? addr : null),
+          provider: 'ONE_AM',
+          network: clientNetwork.toUpperCase(),
+          is_primary: addr === primaryAddress,
+          status: 'ACTIVE',
         },
       })
     }
 
-    // Ensure native Wallet record exists
-    await prisma.wallet.upsert({
-      where: {
-        address: cleanAddress,
-      },
-      update: {
-        user_id: user.id,
-        shielded_address: shieldedAddress || null,
-        unshielded_address: unshieldedAddress || null,
-        network: 'PREVIEW',
-        status: 'ACTIVE',
-        deleted_at: null,
-      },
-      create: {
-        user_id: user.id,
-        address: cleanAddress,
-        shielded_address: shieldedAddress || null,
-        unshielded_address: unshieldedAddress || null,
-        provider: 'ONE_AM',
-        network: 'PREVIEW',
-        is_primary: true,
-        status: 'ACTIVE',
-      },
-    })
-
     // 4. Issue Signed JWT Tokens
     const tokenPayload = {
       userId: user.id,
-      walletAddress: cleanAddress,
-      network: 'preview',
+      walletAddress: primaryAddress,
+      network: clientNetwork,
     }
 
     const token = jwt.sign(tokenPayload, serverConfig.auth.jwtSecret, {
@@ -243,8 +255,8 @@ export const verifyWalletAuth = async (req: Request, res: Response) => {
         resource_type: 'User',
         resource_id: user.id,
         metadata: JSON.stringify({
-          walletAddress: cleanAddress,
-          network: 'preview',
+          walletAddress: primaryAddress,
+          network: clientNetwork,
           shieldedAddress: shieldedAddress || null,
           unshieldedAddress: unshieldedAddress || null,
           hasSignature: Boolean(signature),
@@ -266,7 +278,7 @@ export const verifyWalletAuth = async (req: Request, res: Response) => {
         walletConnected: user.wallet_connected,
         createdAt: user.created_at,
       },
-      network: 'preview',
+      network: clientNetwork,
     })
   } catch (err: any) {
     console.error('[Auth Controller] Error verifying wallet authentication:', err)

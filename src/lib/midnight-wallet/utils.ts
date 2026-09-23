@@ -438,7 +438,7 @@ export async function extractMidnightAddresses(
   enabledApi: unknown,
   rawProvider: UnknownProvider
 ): Promise<ExtractedAddresses> {
-  const networkId = process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK ?? 'preview'
+  const networkId = process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK ?? 'preprod'
 
   console.log('[MidnightWallet] Extracting addresses...')
 
@@ -629,7 +629,7 @@ export async function extractMidnightBalances(
   enabledApi: unknown,
   rawProvider: UnknownProvider
 ): Promise<MidnightBalances | null> {
-  const networkId = process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK ?? 'preview'
+  const networkId = process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK ?? 'preprod'
   const tsStart = Date.now()
 
   console.log(`[MidnightWallet] fetchBalance start @ ${new Date(tsStart).toISOString()} | network: ${networkId}`)

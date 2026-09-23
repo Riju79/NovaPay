@@ -4,9 +4,9 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
-import { API_URL, getExplorerTxUrl } from '@/config'
+import { API_URL, getExplorerTxUrl, MIDNIGHT_NETWORK } from '@/config'
 import { getRaw1AMProvider } from '@/lib/midnight-wallet/detect'
-import { getConnectedAPI, clearCachedConnectedApi, execute1AMTransfer } from '@/lib/midnight-wallet/utils'
+import { getConnectedAPI, clearCachedConnectedApi, execute1AMTransfer, isNetworkCompatible } from '@/lib/midnight-wallet/utils'
 import {
   Send,
   User,
@@ -119,7 +119,8 @@ export default function SendMoneyPage() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
 
   // Network mismatch check
-  const isNetworkMismatch = Boolean(network && network.toLowerCase() !== 'preview')
+  const targetNetwork = (MIDNIGHT_NETWORK || process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preprod').toLowerCase().trim()
+  const isNetworkMismatch = Boolean(network && !isNetworkCompatible(targetNetwork, network))
 
   // Live countdown timer for Quote Expiry
   useEffect(() => {
@@ -379,7 +380,7 @@ export default function SendMoneyPage() {
       const raw1AM = getRaw1AMProvider()
       if (raw1AM) {
         try {
-          const connectedApi = await getConnectedAPI(raw1AM, 'preview')
+          const connectedApi = await getConnectedAPI(raw1AM, targetNetwork)
           if (connectedApi && typeof connectedApi.makeTransfer === 'function') {
             const amountUnits = BigInt(Math.round(parseFloat(quote.sourceAmount) * 1_000_000))
             const transferRes = await execute1AMTransfer(connectedApi, recipient.trim(), amountUnits)

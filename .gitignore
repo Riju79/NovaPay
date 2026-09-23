@@ -47,3 +47,8 @@ yarn-error.log*
 cache/
 *.db
 *.db-*
+
+# Wallet data files (contain sensitive mnemonics)
+scripts/preprod-wallets.json
+scripts/preprod-wallets.csv
+scripts/check-preprod-temp.mts

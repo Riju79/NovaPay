@@ -4,7 +4,8 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
-import { API_URL, getExplorerTxUrl } from '@/config'
+import { API_URL, getExplorerTxUrl, MIDNIGHT_NETWORK } from '@/config'
+import { isNetworkCompatible } from '@/lib/midnight-wallet/utils'
 import { getAuthHeaders } from '@/lib/auth'
 import {
   Clock,
@@ -81,7 +82,8 @@ export default function ActivityPage() {
   const token = authToken
   const publicKey = wallet?.address || authUser?.walletAddress || null
   const isUserAuthenticated = Boolean(isConnected && authToken)
-  const isNetworkMismatch = isConnected && network ? !network.toLowerCase().includes('preview') : false
+  const targetNetwork = (MIDNIGHT_NETWORK || process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preprod').toLowerCase().trim()
+  const isNetworkMismatch = isConnected && network ? !isNetworkCompatible(targetNetwork, network) : false
 
   // State
   const [transactions, setTransactions] = useState<DBTransaction[]>([])

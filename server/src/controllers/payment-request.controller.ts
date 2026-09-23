@@ -100,37 +100,33 @@ export const getPaymentRequests = async (req: AuthRequest, res: Response) => {
     }
 
     const queryAddress = (req.query.walletAddress as string) || (req.query.address as string) || (req.query.wallet as string)
-    if (queryAddress && !userAddresses.has(queryAddress.trim().toLowerCase())) {
-      const matchingWallet = await prisma.wallet.findFirst({
-        where: {
-          user_id: user.id,
-          OR: [
-            { address: queryAddress.trim() },
-            { shielded_address: queryAddress.trim() },
-            { unshielded_address: queryAddress.trim() },
-          ],
-        },
-      })
-
-      if (!matchingWallet) {
-        return res.status(403).json({
-          error: 'Forbidden: You cannot view payment requests of other wallets.',
-          code: 'FORBIDDEN_WALLET_ACCESS',
+    if (queryAddress) {
+      const q = queryAddress.trim().toLowerCase()
+      if (!userAddresses.has(q)) {
+        const matchingWallet = await prisma.wallet.findFirst({
+          where: {
+            user_id: user.id,
+            OR: [
+              { address: queryAddress.trim() },
+              { shielded_address: queryAddress.trim() },
+              { unshielded_address: queryAddress.trim() },
+            ],
+          },
         })
+        if (matchingWallet) {
+          userAddresses.add(q)
+        }
       }
-      userAddresses.add(queryAddress.trim().toLowerCase())
     }
 
-    const searchAddresses = queryAddress
-      ? [queryAddress.trim()]
-      : Array.from(userAddresses)
-
+    const searchAddresses = Array.from(userAddresses)
     const requests = await prisma.paymentRequest.findMany({
       where: {
         OR: [
           { requester_wallet: { in: searchAddresses } },
           { recipient_wallet: { in: searchAddresses } },
           { requester_id: user.id },
+          { recipient_id: user.id },
         ],
       },
       orderBy: { created_at: 'desc' },

@@ -48,7 +48,7 @@ export function formatEscrowStatus(status: EscrowStatus): string {
 export class EscrowContractClient {
   private networkId: string
 
-  constructor(networkId = 'preview') {
+  constructor(networkId = (process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preprod')) {
     this.networkId = networkId
   }
 
