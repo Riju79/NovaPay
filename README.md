@@ -51,7 +51,7 @@
 We actively gather structured user testing feedback and survey responses for NovaPay on the Midnight Preprod Network. Community members, developers, and testers can review our public test data or submit evaluations directly:
 
 <p align="left">
-  <img src="https://img.shields.io/badge/VERIFIED%20TESTERS-123%20SUBMISSIONS-blue?style=flat-square" alt="Testers"/>
+  <img src="https://img.shields.io/badge/VERIFIED%20TESTERS-80%20SUBMISSIONS-blue?style=flat-square" alt="Testers"/>
   <img src="https://img.shields.io/badge/SATISFACTION%20SCORE-5.0%20%2F%205.0%20%E2%AD%90-yellow?style=flat-square" alt="Score"/>
   <img src="https://img.shields.io/badge/NETWORK-MIDNIGHT%20PREPROD-emerald?style=flat-square" alt="Network"/>
   <img src="https://img.shields.io/badge/STATUS-FEEDBACK%20IMPLEMENTED-success?style=flat-square" alt="Status"/>
@@ -62,7 +62,7 @@ We actively gather structured user testing feedback and survey responses for Nov
 | **Complete Protocol Documentation** | [📖 Full Technical Specifications](DOCUMENTATION.md) | Complete engineering architecture, smart contract interfaces, workflows, and API endpoints |
 | **Formal Security Audit Report** | [🛡️ Security Audit & Threat Model](SECURITY_AUDIT.md) | Comprehensive security assessment, defense-in-depth controls, threat modeling, and test results |
 | **Implementation Feedback Form** | [📝 Submit Feedback (Google Forms)](https://forms.gle/ToUpnVNouowjwPYN6) | Submit user testing reviews, feature requests, and UX evaluations |
-| **Public Survey Responses** | [📊 View Responses Sheet (Google Sheets)](https://docs.google.com/spreadsheets/d/1kBfj25HABcenSYK34-179MJPhxdKR9i3b1-BuRjbv_Q/edit?resourcekey=&gid=840568493#gid=840568493) | Live public spreadsheet tracking 123+ community testing records |
+| **Public Survey Responses** | [📊 View Responses Sheet (Google Sheets)](https://docs.google.com/spreadsheets/d/1kBfj25HABcenSYK34-179MJPhxdKR9i3b1-BuRjbv_Q/edit?resourcekey=&gid=840568493#gid=840568493) | Live public spreadsheet tracking 80+ community testing records |
 | **Official NovaPay Twitter / X** | [🐦 @nilendu_ on X](https://x.com/nilendu_?s=11) | Official announcements, protocol updates, and developer contact |
 
 > [!TIP]
@@ -82,7 +82,7 @@ Based on community feedback gathered through our testing surveys, we prioritized
 | **Privacy & Security** | *"Encryption and PNG steganography concept is very interesting / Recover secret"* | Vivek, Salehaa, Krish | ✅ **Implemented** | Enforced Zero-Knowledge proof generation via Midnight Network Compact circuits, isolated client-side private key signatures via 1AM Wallet DApp connector, and confidential payload routing. | [`fc099c4`](https://github.com/Riju79/NovaPay/commit/fc099c4), [`8e2b5c7`](https://github.com/Riju79/NovaPay/commit/8e2b5c7), [`27c6a7e`](https://github.com/Riju79/NovaPay/commit/27c6a7e) |
 | **End-to-End Flow** | *"The complete flow was smooth and easy to understand / All works fine"* | Vaishnavi Raut, Karn Patil, Paras Babar | ✅ **Implemented** | Streamlined the 3-step remittance workflow (Wallet Connect → Amount Quote → 1AM Approval) with direct deep-links to [1AM Explorer](https://explorer.1am.xyz) for instant on-chain verification. | [`1c3f0aa`](https://github.com/Riju79/NovaPay/commit/1c3f0aa), [`eff1fe4`](https://github.com/Riju79/NovaPay/commit/eff1fe4), [`b52d775`](https://github.com/Riju79/NovaPay/commit/b52d775) |
 
-### 📊 Full Extracted Community Survey Records (123 Verified Submissions)
+### 📊 Full Extracted Community Survey Records (80 Verified Submissions)
 
 Below is the complete dataset extracted directly from the [Public Survey Responses Spreadsheet](https://docs.google.com/spreadsheets/d/1kBfj25HABcenSYK34-179MJPhxdKR9i3b1-BuRjbv_Q/edit?resourcekey=&gid=840568493#gid=840568493):
 
@@ -575,7 +575,7 @@ novapay/
 - [x] Direct 1AM Explorer deep-linking (`https://explorer.1am.xyz/tx/...`).
 - [x] Persistent session auto-reconnection across browser refreshes.
 - [x] Full P2P Request Money & Shareable Invoice links (`/pay/[id]`).
-- [x] 123 verified community user testing submissions collected and embedded directly from public evaluation spreadsheet.
+- [x] 80 verified community user testing submissions collected and embedded directly from public evaluation spreadsheet.
 
 ### In Progress ⚙️
 - [ ] Multi-token payment support for custom ZK assets on Midnight.
