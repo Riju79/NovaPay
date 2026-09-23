@@ -37,6 +37,7 @@ export const createPaymentLink = async (req: AuthRequest, res: Response) => {
 
     const paymentLink = await prisma.paymentLink.create({
       data: {
+        creator_id: user.id,
         creator_wallet: user.wallet_address,
         amount: decimalAmount,
         asset: asset.toUpperCase(),
@@ -93,7 +94,7 @@ export const preparePaymentLinkTx = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Active payment link not found.' })
     }
 
-    if (paymentLink.creator_wallet === payerAddress) {
+    if (paymentLink.creator_wallet.toLowerCase() === payerAddress.toLowerCase()) {
       return res.status(400).json({ error: 'You cannot pay your own payment link.' })
     }
 
@@ -121,15 +122,17 @@ export const preparePaymentLinkTx = async (req: Request, res: Response) => {
 
 /**
  * Endpoint: POST /api/payment-links/:id/submit
- * Submits the signed transaction payload and updates database records.
+ * Submits the confirmed transaction payload and updates database records.
  */
-export const submitPaymentLinkTx = async (req: Request, res: Response) => {
+export const submitPaymentLinkTx = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params
-    const { xdr } = req.body
+    const { xdr, txHash: clientTxHash, payerWallet: bodyPayerWallet, payerAddress, senderAddress } = req.body
 
-    if (!xdr) {
-      return res.status(400).json({ error: 'Signed transaction payload is required.' })
+    const txHash = clientTxHash || req.body.txHash || (xdr ? `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}` : null)
+
+    if (!xdr && !txHash) {
+      return res.status(400).json({ error: 'Transaction hash or signed payload is required.' })
     }
 
     const paymentLink = await prisma.paymentLink.findUnique({ where: { id } })
@@ -144,14 +147,30 @@ export const submitPaymentLinkTx = async (req: Request, res: Response) => {
       })
     }
 
-    let txData: any
-    try {
-      txData = JSON.parse(Buffer.from(xdr, 'base64').toString('utf-8'))
-    } catch {
-      txData = { payer: 'payer_wallet', recipient: paymentLink.creator_wallet, amount: paymentLink.amount }
+    let txData: any = {}
+    if (xdr) {
+      try {
+        txData = JSON.parse(Buffer.from(xdr, 'base64').toString('utf-8'))
+      } catch {
+        txData = {}
+      }
     }
 
-    const txHash = req.body.txHash || `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+    const payerWallet = (
+      bodyPayerWallet ||
+      payerAddress ||
+      senderAddress ||
+      txData.payer ||
+      req.walletAddress ||
+      ''
+    ).trim() || 'payer_wallet'
+
+    const recipientWallet = paymentLink.creator_wallet.trim()
+    const paymentAmount = paymentLink.amount
+
+    if (payerWallet !== 'payer_wallet' && payerWallet.toLowerCase() === recipientWallet.toLowerCase()) {
+      return res.status(400).json({ error: 'You cannot pay your own payment link.' })
+    }
 
     // Replay check
     const existingTx = await prisma.transaction.findUnique({ where: { tx_hash: txHash } })
@@ -172,13 +191,49 @@ export const submitPaymentLinkTx = async (req: Request, res: Response) => {
       })
     }
 
-    const payerWallet = txData.payer || 'payer_wallet'
-    const recipientWallet = paymentLink.creator_wallet
-    const paymentAmount = paymentLink.amount
+    // Find payer user if registered
+    let senderUser = null
+    if (req.userId) {
+      senderUser = await prisma.user.findUnique({ where: { id: req.userId } })
+    }
+    if (!senderUser && payerWallet !== 'payer_wallet') {
+      const payerCandidates = [payerWallet, payerWallet.toLowerCase()]
+      senderUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { wallet_address: { in: payerCandidates } },
+            { wallets: { some: { address: { in: payerCandidates } } } },
+            { wallets: { some: { shielded_address: { in: payerCandidates } } } },
+            { wallets: { some: { unshielded_address: { in: payerCandidates } } } },
+          ],
+        },
+      })
+    }
+
+    // Find recipient user
+    let recipientUser = null
+    if (paymentLink.creator_id) {
+      recipientUser = await prisma.user.findUnique({ where: { id: paymentLink.creator_id } })
+    }
+    if (!recipientUser && recipientWallet) {
+      const recipientCandidates = [recipientWallet, recipientWallet.toLowerCase()]
+      recipientUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { wallet_address: { in: recipientCandidates } },
+            { wallets: { some: { address: { in: recipientCandidates } } } },
+            { wallets: { some: { shielded_address: { in: recipientCandidates } } } },
+            { wallets: { some: { unshielded_address: { in: recipientCandidates } } } },
+          ],
+        },
+      })
+    }
 
     // Save transaction to DB
     const dbTx = await prisma.transaction.create({
       data: {
+        sender_id: senderUser?.id || null,
+        recipient_id: recipientUser?.id || null,
         sender_wallet: payerWallet,
         recipient_wallet: recipientWallet,
         amount: paymentAmount,
@@ -192,12 +247,26 @@ export const submitPaymentLinkTx = async (req: Request, res: Response) => {
     // Notify link creator
     await prisma.notification.create({
       data: {
+        user_id: recipientUser?.id || null,
         wallet_address: recipientWallet,
         title: 'Payment Link Received',
         message: `Successfully received ${paymentAmount} ${paymentLink.asset} from wallet ${payerWallet.slice(0, 10)}... via your payment link.`,
         type: 'SUCCESS'
       }
     })
+
+    // Notify payer if known
+    if (payerWallet !== 'payer_wallet') {
+      await prisma.notification.create({
+        data: {
+          user_id: senderUser?.id || null,
+          wallet_address: payerWallet,
+          title: 'Payment Link Settled',
+          message: `Successfully paid ${paymentAmount} ${paymentLink.asset} to wallet ${recipientWallet.slice(0, 10)}... for invoice #${id.slice(0, 8)}.`,
+          type: 'SUCCESS'
+        }
+      }).catch((e) => console.warn('Payer notification skipped:', e))
+    }
 
     return res.json({
       success: true,
@@ -212,3 +281,4 @@ export const submitPaymentLinkTx = async (req: Request, res: Response) => {
     })
   }
 }
+

@@ -4,10 +4,13 @@ import React, { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
-import { API_URL, getExplorerTxUrl } from '@/config'
-const signTransaction = async (xdr: string, _opts?: any) => {
-  return { signedTxXdr: xdr }
-}
+import { API_URL, getExplorerTxUrl, MIDNIGHT_NETWORK } from '@/config'
+import {
+  getRaw1AMProvider,
+  getConnectedAPI,
+  execute1AMTransfer,
+  isNetworkCompatible
+} from '@/lib/midnight-wallet'
 import {
   Wallet as WalletIcon,
   Check,
@@ -39,7 +42,7 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
   const [isLoadingDetails, setIsLoadingDetails] = useState(true)
   const [detailsError, setDetailsError] = useState<string | null>(null)
 
-  const { wallet, isConnecting, connect, disconnect, balance, fetchBalance, isLoadingBalance: isLoadingBalances } = useMidnightWallet()
+  const { wallet, authToken, network, isConnecting, connect, disconnect, balance, fetchBalance, isLoadingBalance: isLoadingBalances } = useMidnightWallet()
   const publicKey = wallet?.address || null
   const midnightBalance = balance ? balance.tDust : '0.00'
   const usdcBalance = balance ? balance.usdc : '0.00'
@@ -48,14 +51,9 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
 
   // Payment execution state
   const [isPaying, setIsPaying] = useState(false)
-  const [payStep, setPayStep] = useState(0) // 1: Preparing, 2: Signing, 3: Submitting, 4: Success
+  const [payStep, setPayStep] = useState(0) // 1: Connecting 1AM, 2: 1AM Signature Approval, 3: Recording on Ledger, 4: Success
   const [payError, setPayError] = useState<string | null>(null)
   const [txHash, setTxHash] = useState<string | null>(null)
-
-  // Fetch payment link details on mount
-  useEffect(() => {
-    fetchLinkDetails()
-  }, [id])
 
   // Fetch payment link details on mount
   useEffect(() => {
@@ -93,47 +91,65 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
     setTxHash(null)
 
     try {
-      // Step 1: Prepare transaction from backend
+      // Step 1: Detect 1AM Wallet Provider & establish connected API
       setPayStep(1)
-      const prepRes = await fetch(`${API_URL}/api/payment-links/${id}/prepare`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ payerAddress: publicKey })
-      })
-      const prepData = await prepRes.json()
-      if (!prepRes.ok) {
-        throw new Error(prepData.error || 'Failed to prepare transaction.')
+      const raw1AM = getRaw1AMProvider()
+      if (!raw1AM) {
+        throw new Error('1AM Wallet extension not detected in your browser. Please ensure 1AM extension is installed and unlocked.')
       }
 
-      // Step 2: Sign transaction using Freighter
+      const targetNetwork = (MIDNIGHT_NETWORK || process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preprod').toLowerCase().trim()
+      const connectedApi = await getConnectedAPI(raw1AM, targetNetwork)
+      if (!connectedApi) {
+        throw new Error('Failed to establish session with 1AM Wallet. Please unlock your 1AM extension and approve connection.')
+      }
+
+      const numAmount = Number(details.amount) || 0
+      if (numAmount <= 0) {
+        throw new Error('Invalid invoice amount.')
+      }
+
+      const amountBaseUnits = BigInt(Math.round(numAmount * 1_000_000))
+
+      // Step 2: Trigger 1AM Wallet authentication & signature approval popup
       setPayStep(2)
-      const signResult = await signTransaction(prepData.xdr, {
-        networkPassphrase: 'Test SDF Network ; September 2015'
-      })
-      if (typeof signResult === 'object' && (signResult as any).error) {
-        const errObj = (signResult as any).error
-        throw new Error(typeof errObj === 'string' ? errObj : errObj.message || 'User rejected request or signing failed')
-      }
-      const signedXdr = typeof signResult === 'string' ? signResult : (signResult as any).signedTxXdr
+      console.log('[PAY LINK] Triggering 1AM Wallet approval popup for transfer of', numAmount, 'tDUST to', details.creator_wallet)
+      const transferRes = await execute1AMTransfer(connectedApi, details.creator_wallet.trim(), amountBaseUnits)
+      const canonicalTxHash = transferRes?.tx || ''
 
-      // Step 3: Submit transaction to Midnight network via backend
+      if (!canonicalTxHash) {
+        throw new Error('Transaction was cancelled or no transaction hash was returned by 1AM Wallet.')
+      }
+
+      console.log('[PAY LINK] 1AM transaction broadcast successful. Canonical tx hash:', canonicalTxHash)
+
+      // Step 3: Record transaction and mark payment link COMPLETED on server
       setPayStep(3)
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json'
+      }
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`
+      }
+
       const submitRes = await fetch(`${API_URL}/api/payment-links/${id}/submit`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ xdr: signedXdr })
+        headers,
+        body: JSON.stringify({
+          txHash: canonicalTxHash,
+          payerWallet: publicKey,
+          payerAddress: publicKey,
+          senderAddress: publicKey
+        })
       })
+
       const submitData = await submitRes.json()
       if (!submitRes.ok) {
-        throw new Error(submitData.error || 'Horizon network submission rejected.')
+        throw new Error(submitData.error || 'Failed to record transaction on NovaPay ledger.')
       }
 
       // Success!
-      setTxHash(submitData.txHash)
+      setTxHash(canonicalTxHash)
       setPayStep(4)
       if (publicKey) {
         fetchBalance()
@@ -383,12 +399,12 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
             <button
               onClick={handlePay}
               disabled={isPaying || isInsufficient || isUsdcMissingTrustline || isNotFunded}
-              className="w-full py-4.5 bg-emerald-500 text-white hover:bg-emerald-600 disabled:bg-white/10 disabled:text-white/30 font-bold text-xs rounded-2xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
+              className="w-full py-4.5 bg-white text-black hover:bg-white/90 disabled:bg-white/10 disabled:text-white/30 font-bold text-xs rounded-2xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
             >
               {isPaying ? (
-                <Loader2 size={14} className="animate-spin text-white" />
+                <Loader2 size={14} className="animate-spin text-black" />
               ) : (
-                <ShieldCheck size={14} />
+                <ShieldCheck size={14} className="text-black" />
               )}
               <span>Authorize Settlement Payment</span>
             </button>
@@ -409,37 +425,39 @@ export default function PayLinkPage({ params }: { params: Promise<{ id: string }
               <div className="space-y-1.5 max-w-xs">
                 <h3 className="font-bold text-lg">
                   {payStep === 1
-                    ? 'Constructing Transaction'
+                    ? 'Connecting 1AM Wallet'
                     : payStep === 2
                     ? 'Awaiting 1AM Wallet Signature'
                     : payStep === 3
-                    ? 'Transaction Submitted'
+                    ? 'Recording Settlement'
                     : 'Processing Payment'}
                 </h3>
                 <p className="text-xs text-white/55 leading-normal">
-                  {payStep === 3
-                    ? 'Transaction submitted by wallet! Submitting to Midnight RPC.'
-                    : 'Preparing secure transaction envelope. Please approve 1AM wallet confirmation popup.'}
+                  {payStep === 2
+                    ? 'Please review recipient and approve the transaction in the 1AM Wallet popup.'
+                    : payStep === 3
+                    ? 'Transaction signed and submitted to Midnight network. Recording on NovaPay ledger...'
+                    : 'Connecting to 1AM Wallet on Midnight Preprod...'}
                 </p>
               </div>
 
               <div className="w-full max-w-sm bg-white/[0.02] border border-white/5 rounded-2xl p-4 text-left font-mono text-[10px] space-y-2.5 text-white/40">
                 <div className="flex items-center gap-2.5">
-                  <span className={payStep >= 1 ? 'text-emerald-400' : ''}>{payStep > 1 ? '✔' : '⚙'}</span>
+                  <span className={payStep >= 1 ? 'text-white' : ''}>{payStep > 1 ? '✔' : '⚙'}</span>
                   <span className={payStep === 1 ? 'text-white font-bold' : payStep > 1 ? 'text-white/80' : ''}>
-                    Constructing billing transaction...
+                    Connecting 1AM Wallet session...
                   </span>
                 </div>
                 <div className="flex items-center gap-2.5">
-                  <span className={payStep >= 2 ? 'text-emerald-400' : ''}>{payStep > 2 ? '✔' : payStep === 2 ? '⚙' : '○'}</span>
+                  <span className={payStep >= 2 ? 'text-white' : ''}>{payStep > 2 ? '✔' : payStep === 2 ? '⚙' : '○'}</span>
                   <span className={payStep === 2 ? 'text-white font-bold' : payStep > 2 ? 'text-white/80' : ''}>
-                    Awaiting 1AM wallet signature...
+                    Awaiting 1AM wallet signature & approval...
                   </span>
                 </div>
                 <div className="flex items-center gap-2.5">
-                  <span className={payStep >= 3 ? 'text-emerald-400' : ''}>{payStep > 3 ? '✔' : payStep === 3 ? '⚙' : '○'}</span>
-                  <span className={payStep === 3 ? 'text-emerald-300 font-bold' : payStep > 3 ? 'text-white/80' : ''}>
-                    Transaction Submitted: Submitting to Midnight RPC...
+                  <span className={payStep >= 3 ? 'text-white' : ''}>{payStep > 3 ? '✔' : payStep === 3 ? '⚙' : '○'}</span>
+                  <span className={payStep === 3 ? 'text-white font-bold' : payStep > 3 ? 'text-white/80' : ''}>
+                    Recording settlement on NovaPay ledger...
                   </span>
                 </div>
               </div>
