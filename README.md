@@ -311,7 +311,8 @@ flowchart TD
 ### Active Deployed Compact Contracts (Preprod)
 
 #### 1. Escrow Smart Contract (`EscrowContract`)
-* **Preprod Contract Address (Hex)**: `443a1a8b3dfcca0bc809e15fbee0160bfc3e9eb375cfee4f8383b8a3b2fcbaa2`
+* **Preprod Contract Address (Hex)**: `a8239962710fb4bd1c9c1c5a88582bf51588b8fca678591db53f70600dc64ed2`
+* **Explorer Verification**: [View on 1AM Explorer](https://explorer.1am.xyz/contract/a8239962710fb4bd1c9c1c5a88582bf51588b8fca678591db53f70600dc64ed2)
 * **Network**: Midnight Preprod
 * **Source Artifacts**: [`contracts/escrow/managed/contract/index.js`](file:///Users/rijur/Downloads/novapay/contracts/escrow/managed/contract/index.js)
 * **Purpose**: Locks `tDUST` funds in a zero-knowledge smart contract vault until condition fulfillment or arbiter approval.
@@ -322,7 +323,8 @@ flowchart TD
   - `releaseEscrow(escrowId)` — Releases locked funds to the recipient.
 
 #### 2. Pre-Authorized Recurring Billing Contract (`RecurringContract`)
-* **Preprod Contract Address (Hex)**: `6bef2f7336024b77b9d99f5fa9ee734c77190f4231d1fb123b86fc601bf83fd9`
+* **Preprod Contract Address (Hex)**: `4eb12594c2ec128791af83d82aa54742009710aec55373de2106cf8781e34fa2`
+* **Explorer Verification**: [View on 1AM Explorer](https://explorer.1am.xyz/contract/4eb12594c2ec128791af83d82aa54742009710aec55373de2106cf8781e34fa2)
 * **Network**: Midnight Preprod
 * **Source Artifacts**: [`contracts/recurring_billing/managed/contract/index.js`](file:///Users/rijur/Downloads/novapay/contracts/recurring_billing/managed/contract/index.js)
 * **Purpose**: Authorizes periodic merchant pull charges up to defined cycle limits without re-prompting for manual approval each period.
