@@ -50,12 +50,29 @@ export const createPaymentRequest = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'You cannot request money from your own wallet address.' })
     }
 
+    // Look up if recipient user exists in database
+    const cleanRecipientWallet = recipientWallet.trim()
+    const recipientUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { wallet_address: cleanRecipientWallet },
+          { wallet_address: cleanRecipientWallet.toLowerCase() },
+          { wallets: { some: { address: cleanRecipientWallet } } },
+          { wallets: { some: { address: cleanRecipientWallet.toLowerCase() } } },
+          { wallets: { some: { unshielded_address: cleanRecipientWallet } } },
+          { wallets: { some: { shielded_address: cleanRecipientWallet } } },
+        ],
+        deleted_at: null,
+      },
+    })
+
     // 4. Create request in database
     const request = await prisma.paymentRequest.create({
       data: {
         requester_id: user.id,
+        recipient_id: recipientUser?.id || null,
         requester_wallet: effectiveRequesterWallet,
-        recipient_wallet: recipientWallet.trim(),
+        recipient_wallet: cleanRecipientWallet,
         amount: decimalAmount,
         asset: assetSymbol,
         purpose: purpose ? purpose.trim() : 'Payment Request',
@@ -90,33 +107,35 @@ export const getPaymentRequests = async (req: AuthRequest, res: Response) => {
     }
 
     const userAddresses = new Set<string>()
-    if (user.wallet_address) userAddresses.add(user.wallet_address.trim().toLowerCase())
+    if (user.wallet_address) {
+      userAddresses.add(user.wallet_address.trim())
+      userAddresses.add(user.wallet_address.trim().toLowerCase())
+    }
+    if (req.walletAddress) {
+      userAddresses.add(req.walletAddress.trim())
+      userAddresses.add(req.walletAddress.trim().toLowerCase())
+    }
     if (user.wallets) {
       for (const w of user.wallets) {
-        if (w.address) userAddresses.add(w.address.trim().toLowerCase())
-        if (w.shielded_address) userAddresses.add(w.shielded_address.trim().toLowerCase())
-        if (w.unshielded_address) userAddresses.add(w.unshielded_address.trim().toLowerCase())
+        if (w.address) {
+          userAddresses.add(w.address.trim())
+          userAddresses.add(w.address.trim().toLowerCase())
+        }
+        if (w.shielded_address) {
+          userAddresses.add(w.shielded_address.trim())
+          userAddresses.add(w.shielded_address.trim().toLowerCase())
+        }
+        if (w.unshielded_address) {
+          userAddresses.add(w.unshielded_address.trim())
+          userAddresses.add(w.unshielded_address.trim().toLowerCase())
+        }
       }
     }
 
     const queryAddress = (req.query.walletAddress as string) || (req.query.address as string) || (req.query.wallet as string)
     if (queryAddress) {
-      const q = queryAddress.trim().toLowerCase()
-      if (!userAddresses.has(q)) {
-        const matchingWallet = await prisma.wallet.findFirst({
-          where: {
-            user_id: user.id,
-            OR: [
-              { address: queryAddress.trim() },
-              { shielded_address: queryAddress.trim() },
-              { unshielded_address: queryAddress.trim() },
-            ],
-          },
-        })
-        if (matchingWallet) {
-          userAddresses.add(q)
-        }
-      }
+      userAddresses.add(queryAddress.trim())
+      userAddresses.add(queryAddress.trim().toLowerCase())
     }
 
     const searchAddresses = Array.from(userAddresses)
@@ -264,7 +283,7 @@ export const declinePaymentRequest = async (req: AuthRequest, res: Response) => 
 export const payPaymentRequest = async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params
-    const { xdr, txHash: clientTxHash } = req.body
+    const { xdr, txHash: clientTxHash, tx_hash, payerWallet, senderAddress } = req.body
 
     if (!req.userId) {
       return res.status(401).json({ error: 'Authentication required.', code: 'UNAUTHORIZED' })
@@ -284,27 +303,53 @@ export const payPaymentRequest = async (req: AuthRequest, res: Response) => {
     }
 
     const userAddresses = new Set<string>()
-    if (user.wallet_address) userAddresses.add(user.wallet_address.trim().toLowerCase())
+    if (user.wallet_address) {
+      userAddresses.add(user.wallet_address.trim().toLowerCase())
+      userAddresses.add(user.wallet_address.trim())
+    }
+    if (req.walletAddress) {
+      userAddresses.add(req.walletAddress.trim().toLowerCase())
+      userAddresses.add(req.walletAddress.trim())
+    }
     if (user.wallets) {
       for (const w of user.wallets) {
-        if (w.address) userAddresses.add(w.address.trim().toLowerCase())
-        if (w.shielded_address) userAddresses.add(w.shielded_address.trim().toLowerCase())
-        if (w.unshielded_address) userAddresses.add(w.unshielded_address.trim().toLowerCase())
+        if (w.address) {
+          userAddresses.add(w.address.trim().toLowerCase())
+          userAddresses.add(w.address.trim())
+        }
+        if (w.shielded_address) {
+          userAddresses.add(w.shielded_address.trim().toLowerCase())
+          userAddresses.add(w.shielded_address.trim())
+        }
+        if (w.unshielded_address) {
+          userAddresses.add(w.unshielded_address.trim().toLowerCase())
+          userAddresses.add(w.unshielded_address.trim())
+        }
       }
     }
 
-    if (!userAddresses.has(request.recipient_wallet.toLowerCase())) {
+    const recipientWalletClean = request.recipient_wallet.trim().toLowerCase()
+    const activePayerWallet = ((payerWallet || senderAddress || req.walletAddress || user.wallet_address) as string)?.trim()
+
+    const isAuthorizedRecipient =
+      (request.recipient_id && request.recipient_id === user.id) ||
+      userAddresses.has(recipientWalletClean) ||
+      (activePayerWallet && activePayerWallet.toLowerCase() === recipientWalletClean)
+
+    if (!isAuthorizedRecipient) {
       return res.status(403).json({ error: 'Only the designated request recipient can pay it.' })
     }
 
-    const effectiveAddress = user.wallet_address?.trim() || request.recipient_wallet
+    const effectiveAddress = activePayerWallet || user.wallet_address?.trim() || request.recipient_wallet
 
     if (request.status !== 'PENDING') {
       return res.status(400).json({ error: `This request is already '${request.status}' and cannot be paid.` })
     }
 
-    // Mode A: Prepare transaction envelope
-    if (!xdr) {
+    const finalTxHash = clientTxHash || req.body.txHash || tx_hash
+
+    // Mode A: Prepare transaction envelope (Only if neither txHash nor xdr was submitted)
+    if (!finalTxHash && !xdr) {
       const preparedPayload = Buffer.from(
         JSON.stringify({
           requestId: id,
@@ -318,11 +363,14 @@ export const payPaymentRequest = async (req: AuthRequest, res: Response) => {
       return res.json({ xdr: preparedPayload, request })
     }
 
-    // Mode B: Submit transaction
-    const finalTxHash = clientTxHash || `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+    // Mode B: Record settled transaction
+    const recordedTxHash = finalTxHash || (xdr ? `tx_${Date.now()}_${Math.random().toString(36).substring(2, 9)}` : null)
+    if (!recordedTxHash) {
+      return res.status(400).json({ error: 'Transaction hash is required to complete payment.' })
+    }
 
     // Replay check: verify tx_hash not already used
-    const existingTx = await prisma.transaction.findUnique({ where: { tx_hash: finalTxHash } })
+    const existingTx = await prisma.transaction.findUnique({ where: { tx_hash: recordedTxHash } })
     if (existingTx) {
       return res.status(409).json({ error: 'Duplicate payment: Transaction hash has already been registered.', code: 'DUPLICATE_TX_HASH' })
     }
@@ -332,7 +380,7 @@ export const payPaymentRequest = async (req: AuthRequest, res: Response) => {
       where: { id, status: 'PENDING' },
       data: {
         status: 'COMPLETED',
-        transaction_hash: finalTxHash,
+        transaction_hash: recordedTxHash,
       },
     })
 
@@ -340,15 +388,38 @@ export const payPaymentRequest = async (req: AuthRequest, res: Response) => {
       return res.status(409).json({ error: 'Payment request was already completed or updated by a concurrent request.', code: 'RACE_CONDITION_BLOCKED' })
     }
 
+    // Resolve requester's user ID for cross-linking in Transaction table
+    let requesterUserId = request.requester_id
+    if (!requesterUserId) {
+      const requesterUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { wallet_address: request.requester_wallet.trim() },
+            { wallet_address: request.requester_wallet.trim().toLowerCase() },
+            { wallets: { some: { address: request.requester_wallet.trim() } } },
+            { wallets: { some: { address: request.requester_wallet.trim().toLowerCase() } } },
+            { wallets: { some: { shielded_address: request.requester_wallet.trim() } } },
+            { wallets: { some: { unshielded_address: request.requester_wallet.trim() } } },
+          ],
+          deleted_at: null,
+        },
+      })
+      if (requesterUser) {
+        requesterUserId = requesterUser.id
+      }
+    }
+
     // Create entry in Transaction table
     const dbTx = await prisma.transaction.create({
       data: {
+        sender_id: user.id,
+        recipient_id: requesterUserId || undefined,
         sender_wallet: effectiveAddress,
-        recipient_wallet: request.requester_wallet,
+        recipient_wallet: request.requester_wallet.trim(),
         amount: request.amount,
         asset_type: request.asset,
-        purpose: request.purpose,
-        tx_hash: finalTxHash,
+        purpose: request.purpose || 'Payment Request Settled',
+        tx_hash: recordedTxHash,
         status: 'SUCCESS',
       },
     })
@@ -358,27 +429,29 @@ export const payPaymentRequest = async (req: AuthRequest, res: Response) => {
     // Notifications
     await prisma.notification.create({
       data: {
+        user_id: user.id,
         wallet_address: effectiveAddress,
         title: 'Request Paid',
         message: `Successfully paid request of ${request.amount} ${request.asset} to ${request.requester_wallet.slice(0, 10)}...`,
-        type: 'SUCCESS'
-      }
+        type: 'SUCCESS',
+      },
     }).catch(() => {})
 
     await prisma.notification.create({
       data: {
-        wallet_address: request.requester_wallet,
-        title: 'Request Paid',
+        user_id: requesterUserId || undefined,
+        wallet_address: request.requester_wallet.trim(),
+        title: 'Payment Received',
         message: `Wallet ${effectiveAddress.slice(0, 10)}... has paid your request of ${request.amount} ${request.asset}.`,
-        type: 'SUCCESS'
-      }
+        type: 'SUCCESS',
+      },
     }).catch(() => {})
 
     return res.json({
       success: true,
-      txHash: finalTxHash,
+      txHash: recordedTxHash,
       request: updatedRequest,
-      transaction: dbTx
+      transaction: dbTx,
     })
   } catch (err: any) {
     console.error('Pay request error:', err)

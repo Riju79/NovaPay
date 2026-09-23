@@ -92,17 +92,21 @@ export default function RequestMoneyPage() {
     }
     if (token) {
       fetchRequests()
+      const pollTimer = setInterval(() => {
+        fetchRequests(false)
+      }, 5000)
+      return () => clearInterval(pollTimer)
     } else {
       setRequests([])
     }
   }, [publicKey, token])
 
   // Fetch requests list
-  const fetchRequests = async () => {
+  const fetchRequests = async (showLoading = true) => {
     if (!token) return
-    setIsLoadingRequests(true)
+    if (showLoading) setIsLoadingRequests(true)
     try {
-      const url = `${API_URL}/api/payment-requests`
+      const url = `${API_URL}/api/payment-requests${publicKey ? `?walletAddress=${encodeURIComponent(publicKey)}` : ''}`
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -115,7 +119,7 @@ export default function RequestMoneyPage() {
     } catch (err) {
       console.error('Network error fetching requests:', err)
     } finally {
-      setIsLoadingRequests(false)
+      if (showLoading) setIsLoadingRequests(false)
     }
   }
 
@@ -288,7 +292,18 @@ export default function RequestMoneyPage() {
       }
 
       setSuccessTxHash(canonicalTxHash)
-      fetchRequests()
+      // Optimistically update request status to COMPLETED so it immediately leaves the Pending tab
+      setRequests((prev) =>
+        prev.map((r) =>
+          r.id === req.id
+            ? { ...r, status: 'COMPLETED', transaction_hash: canonicalTxHash }
+            : r
+        )
+      )
+      // Refresh user balance and sync with server
+      fetchBalance()
+      fetchRequests(false)
+      setActiveTab('completed')
     } catch (err: any) {
       console.error('Pay request error:', err)
       setPayError(err.message || 'Payment failed.')

@@ -334,33 +334,35 @@ export const getTransactionHistory = async (req: AuthRequest, res: Response) => 
     }
 
     const userAddresses = new Set<string>()
-    if (user.wallet_address) userAddresses.add(user.wallet_address.trim().toLowerCase())
+    if (user.wallet_address) {
+      userAddresses.add(user.wallet_address.trim())
+      userAddresses.add(user.wallet_address.trim().toLowerCase())
+    }
+    if (req.walletAddress) {
+      userAddresses.add(req.walletAddress.trim())
+      userAddresses.add(req.walletAddress.trim().toLowerCase())
+    }
     if (user.wallets) {
       for (const w of user.wallets) {
-        if (w.address) userAddresses.add(w.address.trim().toLowerCase())
-        if (w.shielded_address) userAddresses.add(w.shielded_address.trim().toLowerCase())
-        if (w.unshielded_address) userAddresses.add(w.unshielded_address.trim().toLowerCase())
+        if (w.address) {
+          userAddresses.add(w.address.trim())
+          userAddresses.add(w.address.trim().toLowerCase())
+        }
+        if (w.shielded_address) {
+          userAddresses.add(w.shielded_address.trim())
+          userAddresses.add(w.shielded_address.trim().toLowerCase())
+        }
+        if (w.unshielded_address) {
+          userAddresses.add(w.unshielded_address.trim())
+          userAddresses.add(w.unshielded_address.trim().toLowerCase())
+        }
       }
     }
 
     const queryAddress = (req.query.walletAddress as string) || (req.query.address as string)
     if (queryAddress) {
-      const q = queryAddress.trim().toLowerCase()
-      if (!userAddresses.has(q)) {
-        const matchingWallet = await prisma.wallet.findFirst({
-          where: {
-            user_id: user.id,
-            OR: [
-              { address: queryAddress.trim() },
-              { shielded_address: queryAddress.trim() },
-              { unshielded_address: queryAddress.trim() },
-            ],
-          },
-        })
-        if (matchingWallet) {
-          userAddresses.add(q)
-        }
-      }
+      userAddresses.add(queryAddress.trim())
+      userAddresses.add(queryAddress.trim().toLowerCase())
     }
 
     const searchAddresses = Array.from(userAddresses)

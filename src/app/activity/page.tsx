@@ -153,6 +153,12 @@ export default function ActivityPage() {
 
   useEffect(() => {
     fetchData(true)
+    if (publicKey && token) {
+      const pollTimer = setInterval(() => {
+        fetchData(false)
+      }, 6000)
+      return () => clearInterval(pollTimer)
+    }
   }, [publicKey, token])
 
   // Refresh helper
@@ -283,7 +289,7 @@ export default function ActivityPage() {
     // 1. Add Transactions if matches activeTab
     if (activeTab === 'all' || activeTab === 'transactions') {
       transactions.forEach(tx => {
-        const isSender = tx.sender_wallet === publicKey
+        const isSender = tx.sender_wallet?.trim().toLowerCase() === publicKey?.trim().toLowerCase()
         const matchesQuery =
           tx.purpose.toLowerCase().includes(searchQuery.toLowerCase()) ||
           tx.sender_wallet.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -648,7 +654,7 @@ export default function ActivityPage() {
               {filteredActivities.map(activity => {
                 if (activity.itemType === 'transaction') {
                   const tx = activity.data
-                  const isSender = tx.sender_wallet === publicKey
+                  const isSender = tx.sender_wallet?.trim().toLowerCase() === publicKey?.trim().toLowerCase()
                   const counterparty = isSender ? tx.recipient_wallet : tx.sender_wallet
 
                   return (
@@ -861,11 +867,11 @@ export default function ActivityPage() {
             <div className="flex flex-col items-center space-y-5">
               {/* Icon Indicator */}
               <div className={`w-12 h-12 rounded-full border flex items-center justify-center shadow-lg ${
-                selectedTx.sender_wallet === publicKey
+                selectedTx.sender_wallet?.trim().toLowerCase() === publicKey?.trim().toLowerCase()
                   ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
                   : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
               }`}>
-                {selectedTx.sender_wallet === publicKey ? (
+                {selectedTx.sender_wallet?.trim().toLowerCase() === publicKey?.trim().toLowerCase() ? (
                   <ArrowUpRight size={22} strokeWidth={2.5} />
                 ) : (
                   <ArrowDownLeft size={22} strokeWidth={2.5} />
@@ -875,7 +881,7 @@ export default function ActivityPage() {
               {/* Header Details */}
               <div className="text-center">
                 <h3 className="font-extrabold text-lg tracking-tight uppercase">
-                  {selectedTx.sender_wallet === publicKey ? 'Remittance Sent' : 'Remittance Received'}
+                  {selectedTx.sender_wallet?.trim().toLowerCase() === publicKey?.trim().toLowerCase() ? 'Remittance Sent' : 'Remittance Received'}
                 </h3>
                 <span className={`inline-flex items-center px-3 py-0.5 rounded-full text-[9px] font-bold border mt-2 ${
                   selectedTx.status === 'SUCCESS'
