@@ -4,14 +4,14 @@
  * contract invocation via proof server, and GraphQL indexer confirmation polling.
  */
 
-export const MIDNIGHT_PREVIEW_RPC = 'https://rpc.preview.midnight.network'
-export const MIDNIGHT_PREVIEW_INDEXER = 'https://indexer.preview.midnight.network/graphql'
+export const MIDNIGHT_PREPROD_RPC = 'https://rpc.preprod.midnight.network'
+export const MIDNIGHT_PREPROD_INDEXER = 'https://indexer.preprod.midnight.network/api/v4/graphql'
 
 export const MIDNIGHT_RPC_URL =
-  process.env.NEXT_PUBLIC_MIDNIGHT_RPC_URL || MIDNIGHT_PREVIEW_RPC
+  process.env.NEXT_PUBLIC_MIDNIGHT_RPC_URL || MIDNIGHT_PREPROD_RPC
 
 export const MIDNIGHT_INDEXER_URL =
-  process.env.NEXT_PUBLIC_MIDNIGHT_INDEXER_URL || MIDNIGHT_PREVIEW_INDEXER
+  process.env.NEXT_PUBLIC_MIDNIGHT_INDEXER_URL || MIDNIGHT_PREPROD_INDEXER
 
 export const MIDNIGHT_PROOF_SERVER_URL =
   process.env.NEXT_PUBLIC_MIDNIGHT_PROOF_SERVER_URL ||

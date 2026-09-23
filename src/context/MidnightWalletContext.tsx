@@ -691,7 +691,7 @@ export function MidnightWalletProvider({ children }: { children: React.ReactNode
         isModalOpen,
         detection,
         balance,
-        network: wallet?.networkId || process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preview',
+        network: wallet?.networkId || process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preprod',
         walletName: '1AM Wallet',
         walletProvider: '1am',
         assets,

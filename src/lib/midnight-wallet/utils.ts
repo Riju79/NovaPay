@@ -738,6 +738,7 @@ export function isNetworkCompatible(targetNetworkId: string, walletNetworkId?: s
 
   if ((target === 'preview' || target === 'previewnet') && (wallet === 'preview' || wallet === 'previewnet')) return true
   if ((target === 'preprod' || target === 'preprodnet') && (wallet === 'preprod' || wallet === 'preprodnet')) return true
+  if ((target === 'preview' || target === 'preprod') && (wallet === 'preview' || wallet === 'preprod')) return true
 
   return false
 }

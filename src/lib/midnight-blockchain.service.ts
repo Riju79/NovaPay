@@ -26,8 +26,8 @@ export interface ClientTransactionResult {
 }
 
 export class MidnightBlockchainService {
-  private static rpcUrl = process.env.NEXT_PUBLIC_MIDNIGHT_RPC_URL || 'https://rpc.preview.midnight.network'
-  private static targetNetwork = 'preview'
+  private static rpcUrl = process.env.NEXT_PUBLIC_MIDNIGHT_RPC_URL || 'https://rpc.preprod.midnight.network'
+  private static targetNetwork = (process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preprod').toLowerCase().trim()
 
   /**
    * Capability 1: getNetwork

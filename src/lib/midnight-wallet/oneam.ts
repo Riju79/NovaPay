@@ -52,7 +52,29 @@ export class OneAMMidnightAdapter implements MidnightWalletAdapter {
       // Official 1AM API: InitialAPI.connect(networkId) triggers the authorization popup
       // and returns a ConnectedAPI on approval, or throws on rejection.
       if (typeof (raw1AM as any).connect === 'function') {
-        const connectPromise = (raw1AM as any).connect(targetNetworkId)
+        const executeConnect = async (net: string) => {
+          try {
+            return await (raw1AM as any).connect(net)
+          } catch (initialErr: any) {
+            const msg = initialErr?.message || String(initialErr)
+            // If 1AM extension reported: "Network mismatch. Wallet is on X, requested Y", auto-retry with X
+            const netMatch = msg.match(/Wallet is on ([a-zA-Z0-9_-]+)/i)
+            if (netMatch && netMatch[1] && netMatch[1].toLowerCase() !== net.toLowerCase()) {
+              const actualNet = netMatch[1].toLowerCase()
+              console.warn(`[MidnightWallet] 1AM reported active network '${actualNet}'. Auto-retrying connection...`)
+              targetNetworkId = actualNet
+              return await (raw1AM as any).connect(actualNet)
+            }
+            if (net === 'preview') {
+              console.warn(`[MidnightWallet] Connection to preview failed (${msg}). Retrying with preprod...`)
+              targetNetworkId = 'preprod'
+              return await (raw1AM as any).connect('preprod')
+            }
+            throw initialErr
+          }
+        }
+
+        const connectPromise = executeConnect(targetNetworkId)
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(
             () => reject(new MidnightWalletError('CONNECTION_TIMEOUT')),

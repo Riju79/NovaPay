@@ -1,27 +1,27 @@
 /**
  * NovaPay Frontend Centralized Configuration & Startup Validator
- * Target Network: MIDNIGHT PREVIEW
+ * Target Network: MIDNIGHT PREPROD
  *
  * Enforces strict network separation, schema validation, and anti-Mainnet protection.
  */
 
 // ─── Network Anti-Mainnet Validation ──────────────────────────────────────────
 
-const rawNetwork = (process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preview').toLowerCase().trim()
+const rawNetwork = (process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preprod').toLowerCase().trim()
 
 if (rawNetwork.includes('main') || rawNetwork === 'mainnet') {
   throw new Error(
-    '[FATAL CONFIGURATION ERROR] Midnight Mainnet is strictly prohibited in NovaPay Preview builds! ' +
-    `Attempted network: '${rawNetwork}'. Please set NEXT_PUBLIC_MIDNIGHT_NETWORK='preview'.`
+    '[FATAL CONFIGURATION ERROR] Midnight Mainnet is strictly prohibited in NovaPay builds! ' +
+    `Attempted network: '${rawNetwork}'. Please set NEXT_PUBLIC_MIDNIGHT_NETWORK='preprod'.`
   )
 }
 
-const rawRpcUrl = process.env.NEXT_PUBLIC_MIDNIGHT_RPC_URL || 'https://rpc.preview.midnight.network'
-const rawIndexerUrl = process.env.NEXT_PUBLIC_MIDNIGHT_INDEXER_URL || 'https://indexer.preview.midnight.network/graphql'
+const rawRpcUrl = process.env.NEXT_PUBLIC_MIDNIGHT_RPC_URL || 'https://rpc.preprod.midnight.network'
+const rawIndexerUrl = process.env.NEXT_PUBLIC_MIDNIGHT_INDEXER_URL || 'https://indexer.preprod.midnight.network/api/v4/graphql'
 
 if (rawRpcUrl.toLowerCase().includes('mainnet') || rawIndexerUrl.toLowerCase().includes('mainnet')) {
   throw new Error(
-    '[FATAL CONFIGURATION ERROR] Mainnet endpoints detected in configuration! Preview endpoints required. ' +
+    '[FATAL CONFIGURATION ERROR] Mainnet endpoints detected in configuration! Preprod endpoints required. ' +
     `RPC: ${rawRpcUrl}`
   )
 }
