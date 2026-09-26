@@ -57,12 +57,13 @@ export class EscrowContractClient {
    * Submits a transaction via 1AM ConnectedAPI if connected, or via backend API.
    */
   public async submitEscrowTransaction(opName: string, payload: any): Promise<{ txHash: string }> {
-    if (!payload.payeeAddress && !payload.payerAddress) {
+    // Only 'create' and 'fund' operations send funds from wallet to a recipient
+    if ((opName === 'create' || opName === 'fund') && !payload.payeeAddress && !payload.payerAddress) {
       throw new Error('Recipient address is required for escrow transaction.')
     }
 
     const raw1AM = getRaw1AMProvider()
-    if (raw1AM) {
+    if (raw1AM && (opName === 'create' || opName === 'fund')) {
       const connectedApi = await getConnectedAPI(raw1AM, this.networkId)
       if (connectedApi && typeof connectedApi.makeTransfer === 'function') {
         try {

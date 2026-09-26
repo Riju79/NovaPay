@@ -154,8 +154,11 @@ export const updateEscrowStatus = async (req: any, res: Response) => {
       return res.status(401).json({ error: 'Authentication required.', code: 'UNAUTHORIZED' })
     }
 
-    const user = await prisma.user.findUnique({ where: { id: req.userId } })
-    if (!user || !user.wallet_address) {
+    const user = await prisma.user.findUnique({
+      where: { id: req.userId },
+      include: { wallets: true },
+    })
+    if (!user) {
       return res.status(403).json({ error: 'Authenticated user has no connected wallet.' })
     }
 
@@ -164,11 +167,21 @@ export const updateEscrowStatus = async (req: any, res: Response) => {
       return res.status(404).json({ error: 'Escrow record not found.' })
     }
 
-    const callerWallet = user.wallet_address.trim().toLowerCase()
+    const userWallets = new Set<string>()
+    if (user.wallet_address) userWallets.add(user.wallet_address.trim().toLowerCase())
+    if (req.walletAddress) userWallets.add(req.walletAddress.trim().toLowerCase())
+    if (user.wallets) {
+      for (const w of user.wallets) {
+        if (w.address) userWallets.add(w.address.trim().toLowerCase())
+        if (w.shielded_address) userWallets.add(w.shielded_address.trim().toLowerCase())
+        if (w.unshielded_address) userWallets.add(w.unshielded_address.trim().toLowerCase())
+      }
+    }
+
     const isParticipant =
-      existing.payer.toLowerCase() === callerWallet ||
-      existing.payee.toLowerCase() === callerWallet ||
-      existing.arbiter.toLowerCase() === callerWallet
+      userWallets.has(existing.payer.toLowerCase()) ||
+      userWallets.has(existing.payee.toLowerCase()) ||
+      userWallets.has(existing.arbiter.toLowerCase())
 
     if (!isParticipant) {
       return res.status(403).json({
