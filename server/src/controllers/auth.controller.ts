@@ -172,7 +172,6 @@ export const verifyWalletAuth = async (req: Request, res: Response) => {
           { wallets: { some: { shielded_address: { in: candidateAddresses } } } },
           { wallets: { some: { unshielded_address: { in: candidateAddresses } } } },
         ],
-        deleted_at: null,
       },
       include: { wallets: true },
     })
@@ -196,6 +195,7 @@ export const verifyWalletAuth = async (req: Request, res: Response) => {
         where: { id: user.id },
         data: {
           wallet_connected: true,
+          deleted_at: null,
         },
         include: { wallets: true },
       })
@@ -282,7 +282,10 @@ export const verifyWalletAuth = async (req: Request, res: Response) => {
     })
   } catch (err: any) {
     console.error('[Auth Controller] Error verifying wallet authentication:', err)
-    return res.status(500).json({ error: 'Internal server error verifying authentication.' })
+    return res.status(500).json({
+      error: 'Internal server error verifying authentication.',
+      details: err?.message || String(err),
+    })
   }
 }
 

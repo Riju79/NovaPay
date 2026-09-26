@@ -211,19 +211,12 @@ export function MidnightWalletProvider({ children }: { children: React.ReactNode
         })
 
         if (!verifyRes || !verifyRes.ok) {
-          console.warn('[1AM Auth] Verification failed on backend. Falling back to local Web3 session.')
-          const fallbackToken = `web3_local_${address.slice(0, 16)}_${Date.now()}`
-          setStoredAuthToken(fallbackToken)
-          setAuthToken(fallbackToken)
-          setAuthUser({
-            id: `usr_${address.slice(-8)}`,
-            fullName: `User ${address.slice(0, 8)}`,
-            email: `${address.slice(0, 10)}@midnight.wallet`,
-            walletAddress: address,
-            wallet_address: address,
-            walletConnected: true,
-          })
-          return fallbackToken
+          const errData = verifyRes ? await verifyRes.json().catch(() => ({})) : {}
+          console.warn('[1AM Auth] Backend verification failed:', errData?.details || errData?.error || verifyRes?.statusText)
+          clearStoredAuthTokens()
+          setAuthToken(null)
+          setAuthUser(null)
+          return null
         }
 
         const verifyData = await verifyRes.json()

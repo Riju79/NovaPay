@@ -4,8 +4,8 @@
   "description": "NovaPay Authentication and Session Backend",
   "main": "build/index.js",
   "scripts": {
-    "build": "npx prisma generate && tsc",
-    "start": "node build/index.js",
+    "build": "npx prisma db push --accept-data-loss && tsc",
+    "start": "npx prisma db push --accept-data-loss && node build/index.js",
     "migrate:deploy": "npx prisma migrate deploy",
     "dev": "nodemon src/index.ts",
     "test": "node --test test/*.test.js",
