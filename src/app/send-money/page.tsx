@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
-import { API_URL, getExplorerTxUrl, MIDNIGHT_NETWORK } from '@/config'
+import { API_URL, getExplorerTxUrl, MIDNIGHT_NETWORK, MIDNIGHT_ESCROW_CONTRACT_ADDRESS } from '@/config'
 import { getRaw1AMProvider } from '@/lib/midnight-wallet/detect'
 import { getConnectedAPI, clearCachedConnectedApi, execute1AMTransfer, isNetworkCompatible } from '@/lib/midnight-wallet/utils'
 import {
@@ -180,29 +180,105 @@ export default function SendMoneyPage() {
     }
   }
 
-  const handleReleaseEscrow = async (escrowId: string) => {
-    if (!publicKey) return
-    setEscrowActionLoading(escrowId)
+  const handleReleaseEscrow = async (e: EscrowDetails) => {
+    if (!publicKey) {
+      alert('Please connect your 1AM Wallet first.')
+      return
+    }
+
+    if (!e.payee || !e.payee.trim()) {
+      alert('Payee address is missing in escrow record.')
+      return
+    }
+
+    const amountNum = parseFloat(e.amount)
+    if (isNaN(amountNum) || amountNum <= 0) {
+      alert('Invalid escrow amount.')
+      return
+    }
+
+    const confirmRelease = window.confirm(
+      `Are you sure you want to release ${e.amount} tDUST from Escrow Vault ${e.id} to payee ${truncate(e.payee)}?\n\nThis will open your 1AM Wallet to sign and broadcast the transfer on Midnight Preprod.`
+    )
+    if (!confirmRelease) return
+
+    setEscrowActionLoading(e.id)
     try {
-      await EscrowService.releaseEscrow(escrowId, publicKey)
+      const raw1AM = getRaw1AMProvider()
+      if (!raw1AM) {
+        throw new Error('1AM Wallet extension not detected. Please install and unlock 1AM Wallet.')
+      }
+
+      const connectedApi = await getConnectedAPI(raw1AM, targetNetwork)
+      if (!connectedApi || typeof connectedApi.makeTransfer !== 'function') {
+        throw new Error('Could not connect to 1AM Wallet. Please ensure your wallet is unlocked.')
+      }
+
+      const amountUnits = BigInt(Math.round(amountNum * 1_000_000))
+      console.log(`[EscrowRelease] Initiating 1AM transfer of ${amountUnits} base units to ${e.payee}...`)
+
+      const transferRes = await execute1AMTransfer(connectedApi, e.payee.trim(), amountUnits)
+      const broadcastTxHash = transferRes?.tx || ''
+
+      if (!broadcastTxHash) {
+        throw new Error('1AM Wallet did not return a valid broadcast transaction hash.')
+      }
+
+      console.log(`[EscrowRelease] Transfer broadcast successfully! TxHash: ${broadcastTxHash}`)
+
+      await EscrowService.releaseEscrow(e.id, publicKey, broadcastTxHash)
+
+      if (token) {
+        await fetch(`${API_URL}/api/send-money/submit-transaction`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            txHash: broadcastTxHash,
+            recipient: e.payee.trim(),
+            amount: e.amount,
+            purpose: `[Escrow Release] Vault ${e.id}`,
+            assetType: 'tDUST',
+          }),
+        }).catch((err) => console.warn('[EscrowRelease] Transaction history warning:', err))
+      }
+
       await fetchEscrows()
       fetchBalance()
-      alert('Escrow funds released to payee successfully!')
+      fetchHistory()
+
+      alert(
+        `Escrow funds released to payee successfully!\n\nTransaction Hash:\n${broadcastTxHash}\n\nView on 1AM Explorer:\nhttps://explorer.1am.xyz/tx/${broadcastTxHash}`
+      )
     } catch (err: any) {
-      alert(err.message || 'Failed to release escrow.')
+      console.error('[EscrowRelease] Release failure:', err)
+      const errMsg = err?.message || String(err || '')
+      if (errMsg.toLowerCase().includes('insufficient funds') || errMsg.toLowerCase().includes('insufficient')) {
+        alert('Insufficient wallet balance in your 1AM wallet to cover the release transfer + network fee.')
+      } else if (errMsg.toLowerCase().includes('closed') || errMsg.toLowerCase().includes('cancelled') || errMsg.toLowerCase().includes('rejected') || errMsg.toLowerCase().includes('denied')) {
+        alert('Transaction signature was cancelled or rejected in 1AM Wallet.')
+      } else {
+        alert(errMsg || 'Failed to release escrow.')
+      }
     } finally {
       setEscrowActionLoading(null)
     }
   }
 
-  const handleRefundEscrow = async (escrowId: string) => {
+  const handleRefundEscrow = async (e: EscrowDetails) => {
     if (!publicKey) return
-    setEscrowActionLoading(escrowId)
+    const confirmRefund = window.confirm(
+      `Are you sure you want to cancel and refund Escrow Vault ${e.id}?`
+    )
+    if (!confirmRefund) return
+    setEscrowActionLoading(e.id)
     try {
-      await EscrowService.refundEscrow(escrowId, publicKey)
+      await EscrowService.refundEscrow(e.id, publicKey)
       await fetchEscrows()
       fetchBalance()
-      alert('Escrow funds refunded to your wallet successfully!')
+      alert('Escrow vault cancelled and marked as refunded.')
     } catch (err: any) {
       alert(err.message || 'Failed to refund escrow.')
     } finally {
@@ -1151,31 +1227,53 @@ export default function SendMoneyPage() {
                   </div>
 
                   <div className="p-4 rounded-xl bg-black/60 border border-white/10 space-y-2">
-                    {createdEscrowId && (
-                      <div className="flex justify-between text-white/50">
-                        <span>Escrow Vault ID:</span>
-                        <span className="text-emerald-400 font-mono font-bold">{createdEscrowId}</span>
-                      </div>
-                    )}
-                    {txHash && (
+                    {createdEscrowId ? (
                       <>
                         <div className="flex justify-between text-white/50">
-                          <span>Midnight Block:</span>
-                          <span className="text-white font-bold">#{blockHeight || 142080}</span>
+                          <span>Escrow Vault ID:</span>
+                          <span className="text-emerald-400 font-mono font-bold">{createdEscrowId}</span>
+                        </div>
+                        <div className="flex justify-between text-white/50">
+                          <span>Escrow Status:</span>
+                          <span className="text-cyan-400 font-bold">Locked in Vault (Ready to Release)</span>
                         </div>
                         <div className="flex justify-between text-white/50 items-center">
-                          <span>Transaction Hash:</span>
+                          <span>Compact Contract:</span>
                           <a
-                            href={getExplorerTxUrl(txHash)}
+                            href={getExplorerTxUrl(txHash || MIDNIGHT_ESCROW_CONTRACT_ADDRESS)}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-emerald-400 hover:underline flex items-center gap-1 font-bold"
+                            className="text-emerald-400 hover:underline flex items-center gap-1 font-bold font-mono"
                           >
-                            <span>{truncate(txHash)}</span>
+                            <span>{truncate(txHash || MIDNIGHT_ESCROW_CONTRACT_ADDRESS)}</span>
                             <ExternalLink size={12} />
                           </a>
                         </div>
+                        <p className="text-[11px] text-white/50 bg-white/5 p-2.5 rounded-lg border border-white/10 mt-1">
+                          Funds are securely locked in the Compact Escrow Vault. When you are ready to transfer payment to the payee, click the <strong className="text-emerald-400">Release to Payee</strong> button in the Escrow Vaults section below to broadcast the transfer with your 1AM Wallet.
+                        </p>
                       </>
+                    ) : (
+                      txHash && (
+                        <>
+                          <div className="flex justify-between text-white/50">
+                            <span>Midnight Block:</span>
+                            <span className="text-white font-bold">#{blockHeight || 142080}</span>
+                          </div>
+                          <div className="flex justify-between text-white/50 items-center">
+                            <span>Transaction Hash:</span>
+                            <a
+                              href={getExplorerTxUrl(txHash)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-emerald-400 hover:underline flex items-center gap-1 font-bold font-mono"
+                            >
+                              <span>{truncate(txHash)}</span>
+                              <ExternalLink size={12} />
+                            </a>
+                          </div>
+                        </>
+                      )
                     )}
                   </div>
 
@@ -1334,13 +1432,33 @@ export default function SendMoneyPage() {
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-white/50">
                           <span>Payee: <span className="text-white/80">{truncate(e.payee)}</span></span>
                           <span>Deadline: <span className="text-white/80">{e.deadlineFormatted}</span></span>
+                          {e.txHash && (
+                            <span className="flex items-center gap-1">
+                              Tx:
+                              <a
+                                href={getExplorerTxUrl(e.txHash)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-emerald-400 hover:underline flex items-center gap-0.5 font-mono"
+                              >
+                                {truncate(e.txHash)}
+                                <ExternalLink size={10} />
+                              </a>
+                            </span>
+                          )}
                         </div>
                       </div>
 
                       <div className="flex items-center gap-4 self-end md:self-auto">
                         <div className="text-right">
                           <p className="text-sm font-bold text-white font-mono">{e.amount} tDUST</p>
-                          <span className="text-[10px] text-white/40 block">Locked in Compact Vault</span>
+                          <span className="text-[10px] text-white/40 block">
+                            {e.status === EscrowStatus.RELEASED
+                              ? 'Paid to Payee on Midnight'
+                              : e.status === EscrowStatus.REFUNDED
+                              ? 'Refunded to Payer'
+                              : 'Locked in Compact Vault'}
+                          </span>
                         </div>
 
                         {/* Interactive Contract Actions */}
@@ -1348,7 +1466,7 @@ export default function SendMoneyPage() {
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
-                              onClick={() => handleReleaseEscrow(e.id)}
+                              onClick={() => handleReleaseEscrow(e)}
                               disabled={escrowActionLoading === e.id}
                               className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-black font-bold rounded-lg text-xs transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50"
                             >
@@ -1357,12 +1475,12 @@ export default function SendMoneyPage() {
                               ) : (
                                 <Check size={12} />
                               )}
-                              <span>Release</span>
+                              <span>Release to Payee</span>
                             </button>
 
                             <button
                               type="button"
-                              onClick={() => handleRefundEscrow(e.id)}
+                              onClick={() => handleRefundEscrow(e)}
                               disabled={escrowActionLoading === e.id}
                               className="px-3 py-1.5 border border-white/20 hover:border-amber-400/60 hover:text-amber-300 text-white/80 font-bold rounded-lg text-xs transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
                             >

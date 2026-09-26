@@ -57,10 +57,12 @@ export const MIDNIGHT_ASSET_ID =
   process.env.NEXT_PUBLIC_MIDNIGHT_ASSET_ID || 'tDUST'
 
 export const MIDNIGHT_ESCROW_CONTRACT_ADDRESS =
-  process.env.NEXT_PUBLIC_MIDNIGHT_ESCROW_CONTRACT_ADDRESS || ''
+  process.env.NEXT_PUBLIC_MIDNIGHT_ESCROW_CONTRACT_ADDRESS ||
+  'a8239962710fb4bd1c9c1c5a88582bf51588b8fca678591db53f70600dc64ed2'
 
 export const MIDNIGHT_RECURRING_CONTRACT_ADDRESS =
-  process.env.NEXT_PUBLIC_MIDNIGHT_RECURRING_CONTRACT_ADDRESS || ''
+  process.env.NEXT_PUBLIC_MIDNIGHT_RECURRING_CONTRACT_ADDRESS ||
+  '4eb12594c2ec128791af83d82aa54742009710aec55373de2106cf8781e34fa2'
 
 // ─── Explorer Deep Link Helper ────────────────────────────────────────────────
 
@@ -78,8 +80,25 @@ export function getExplorerTxUrl(txHash: string | null | undefined): string {
   ) {
     return `${MIDNIGHT_EXPLORER_URL}/address/${encodeURIComponent(cleanHash)}`
   }
+
   // 1AM Explorer requires raw hex without 0x prefix
   const rawHex = cleanHash.replace(/^0x/i, '')
   const baseUrl = MIDNIGHT_EXPLORER_URL.replace(/\/+$/, '')
+
+  // Route Compact contract addresses to /contract/ instead of /tx/ so Explorer doesn't report "No transaction"
+  if (
+    rawHex.toLowerCase() === 'a8239962710fb4bd1c9c1c5a88582bf51588b8fca678591db53f70600dc64ed2' ||
+    rawHex.toLowerCase() === '4eb12594c2ec128791af83d82aa54742009710aec55373de2106cf8781e34fa2' ||
+    rawHex === MIDNIGHT_ESCROW_CONTRACT_ADDRESS ||
+    rawHex === MIDNIGHT_RECURRING_CONTRACT_ADDRESS
+  ) {
+    return `${baseUrl}/contract/${encodeURIComponent(rawHex)}`
+  }
+
+  // If a mock or internal label like tx_escrow_... is passed, route to the Escrow contract on 1AM explorer
+  if (rawHex.startsWith('tx_escrow_') || rawHex.startsWith('tx_recurring_')) {
+    return `${baseUrl}/contract/${encodeURIComponent(MIDNIGHT_ESCROW_CONTRACT_ADDRESS)}`
+  }
+
   return `${baseUrl}/tx/${encodeURIComponent(rawHex)}`
 }

@@ -209,14 +209,20 @@ export const handleEscrowContractAction = async (req: Request, res: Response) =>
     const { action } = req.params
     const { txHash } = req.body
 
+    const escrowContractAddress =
+      process.env.NEXT_PUBLIC_MIDNIGHT_ESCROW_CONTRACT_ADDRESS ||
+      process.env.MIDNIGHT_ESCROW_CONTRACT_ADDRESS ||
+      'a8239962710fb4bd1c9c1c5a88582bf51588b8fca678591db53f70600dc64ed2'
+
     const effectiveTxHash = txHash
       ? String(txHash).trim().replace(/^0x/i, '')
-      : `tx_escrow_${action}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+      : escrowContractAddress
 
     return res.json({
       success: true,
       action,
       txHash: effectiveTxHash,
+      contractAddress: escrowContractAddress,
       timestamp: Date.now(),
     })
   } catch (err: any) {

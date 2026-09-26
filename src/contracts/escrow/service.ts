@@ -109,26 +109,29 @@ export class EscrowService {
   public static async releaseEscrow(
     escrowId: string,
     callerAddress: string,
+    txHash?: string,
     txManager?: TransactionManager
   ): Promise<{ txHash: string }> {
     txManager?.setPreparing()
     txManager?.setAwaitingWallet()
 
     try {
-      const { txHash } = await escrowClient.submitEscrowTransaction('release', {
+      const { txHash: effectiveTxHash } = await escrowClient.submitEscrowTransaction('release', {
         escrowId,
         callerAddress,
+        ...(txHash ? { txHash } : {}),
       })
-      txManager?.setSubmitted(txHash)
+      const finalHash = txHash || effectiveTxHash
+      txManager?.setSubmitted(finalHash)
 
       await fetch(`${API_URL}/api/escrow/records/${escrowId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({ status: EscrowStatus.RELEASED, txHash }),
+        body: JSON.stringify({ status: EscrowStatus.RELEASED, txHash: finalHash }),
       }).catch(() => null)
 
-      txManager?.setConfirmed(txHash)
-      return { txHash }
+      txManager?.setConfirmed(finalHash)
+      return { txHash: finalHash }
     } catch (err: any) {
       txManager?.setFailed(err.message || 'Failed to release escrow')
       throw err

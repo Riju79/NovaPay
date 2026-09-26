@@ -97,6 +97,11 @@ export default function RequestMoneyPage() {
 
   const handleReleaseEscrowForRequest = async (req: PaymentRequest) => {
     if (!publicKey) return
+    const confirmRelease = window.confirm(
+      `Are you sure you want to release ${req.amount} tDUST to requester ${(req as any).requester_name || req.requester_wallet}?\n\nThis will trigger your 1AM Wallet to sign and transfer the funds on Midnight Preprod.`
+    )
+    if (!confirmRelease) return
+
     setEscrowActionLoading(req.id)
     try {
       const escrows = await EscrowService.fetchEscrows(publicKey)
@@ -106,7 +111,19 @@ export default function RequestMoneyPage() {
           e.payee.toLowerCase() === req.requester_wallet.toLowerCase()
       )
       const targetEscrowId = matching?.id || `escrow_${req.id.slice(0, 8)}`
-      await EscrowService.releaseEscrow(targetEscrowId, publicKey)
+
+      const raw1AM = getRaw1AMProvider()
+      let broadcastTxHash = ''
+      if (raw1AM) {
+        const connectedApi = await getConnectedAPI(raw1AM, MIDNIGHT_NETWORK)
+        if (connectedApi && typeof connectedApi.makeTransfer === 'function') {
+          const amountUnits = BigInt(Math.round(parseFloat(String(req.amount)) * 1_000_000))
+          const transferRes = await execute1AMTransfer(connectedApi, req.requester_wallet.trim(), amountUnits)
+          broadcastTxHash = transferRes?.tx || ''
+        }
+      }
+
+      await EscrowService.releaseEscrow(targetEscrowId, publicKey, broadcastTxHash)
       await fetchRequests()
       fetchBalance()
       alert('Escrow funds released to payee successfully!')
