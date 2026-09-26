@@ -124,9 +124,13 @@ export function validateEnvironment(): ServerConfig {
   const port = parseInt(process.env.PORT || '5000', 10)
 
   // 1. Explicit Network & Anti-Mainnet Safeguards
-  const midnightNetwork = (process.env.MIDNIGHT_NETWORK || 'preview').toLowerCase().trim()
-  const rpcUrl = process.env.MIDNIGHT_RPC_URL || 'https://rpc.preview.midnight.network'
-  const indexerUrl = process.env.MIDNIGHT_INDEXER_URL || 'https://indexer.preview.midnight.network/graphql'
+  const midnightNetwork = (process.env.MIDNIGHT_NETWORK || 'preprod').toLowerCase().trim()
+  const rpcUrl =
+    process.env.MIDNIGHT_RPC_URL ||
+    (midnightNetwork === 'preview' ? 'https://rpc.preview.midnight.network' : 'https://rpc.preprod.midnight.network')
+  const indexerUrl =
+    process.env.MIDNIGHT_INDEXER_URL ||
+    (midnightNetwork === 'preview' ? 'https://indexer.preview.midnight.network/graphql' : 'https://indexer.preprod.midnight.network/api/v4/graphql')
   const explorerUrl = process.env.MIDNIGHT_EXPLORER_URL || 'https://explorer.1am.xyz'
   const proofServerUrl = process.env.MIDNIGHT_PROOF_SERVER_URL || 'http://localhost:6300'
 
