@@ -111,6 +111,14 @@ app.get('/', (req, res) => {
   })
 })
 
+// 404 Not Found JSON fallback (prevents Express from returning default HTML)
+app.use((req, res) => {
+  res.status(404).json({
+    error: `Endpoint '${req.method} ${req.originalUrl}' not found on NovaPay backend.`,
+    code: 'ROUTE_NOT_FOUND',
+  })
+})
+
 // Sanitized Error handling middleware with operational telemetry recording
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   const status = err?.status || 500

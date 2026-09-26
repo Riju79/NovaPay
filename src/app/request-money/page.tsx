@@ -141,14 +141,19 @@ export default function RequestMoneyPage() {
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       })
-      const data = await res.json()
+      const contentType = res.headers.get('content-type') || ''
+      if (!contentType.includes('application/json')) {
+        console.warn(`[NovaPay] Backend returned non-JSON response from ${url} (status: ${res.status}). Verify backend is running on port 5000.`)
+        return
+      }
+      const data = await res.json().catch(() => null)
       if (res.ok && Array.isArray(data)) {
         setRequests(data)
-      } else {
-        console.error('Error fetching requests:', data?.error)
+      } else if (data?.error) {
+        console.error('Error fetching requests:', data.error)
       }
     } catch (err) {
-      console.error('Network error fetching requests:', err)
+      console.warn('Network error fetching requests (backend may be sleeping or offline):', err)
     } finally {
       if (showLoading) setIsLoadingRequests(false)
     }
@@ -213,8 +218,8 @@ export default function RequestMoneyPage() {
         })
       })
 
-      const data = await res.json()
-      if (res.ok) {
+      const data = await res.json().catch(() => null)
+      if (res.ok && data) {
         // Clear form
         setRecipientWallet('')
         setAmount('')
@@ -224,10 +229,10 @@ export default function RequestMoneyPage() {
         // Refresh requests
         fetchRequests()
       } else {
-        setCreationError(data.error || 'Failed to create payment request.')
+        setCreationError(data?.error || `Server returned status ${res.status}. Please ensure backend is running.`)
       }
     } catch (err) {
-      setCreationError('Network error creating request.')
+      setCreationError('Network error creating request. Please check backend connection.')
     } finally {
       setIsCreatingRequest(false)
     }
@@ -243,11 +248,11 @@ export default function RequestMoneyPage() {
           Authorization: `Bearer ${token}`
         }
       })
+      const data = await res.json().catch(() => null)
       if (res.ok) {
         fetchRequests()
       } else {
-        const data = await res.json()
-        alert(data.error || 'Failed to decline request.')
+        alert(data?.error || `Failed to decline request (${res.status}).`)
       }
     } catch (err) {
       alert('Network error declining request.')
@@ -344,9 +349,9 @@ export default function RequestMoneyPage() {
         })
       })
 
-      const submitData = await submitRes.json()
+      const submitData = await submitRes.json().catch(() => null)
       if (!submitRes.ok) {
-        throw new Error(submitData.error || 'Midnight transaction submission rejected.')
+        throw new Error(submitData?.error || `Transaction submission failed with status ${submitRes.status}.`)
       }
 
       setSuccessTxHash(canonicalTxHash)

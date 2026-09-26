@@ -217,8 +217,10 @@ export default function SendMoneyPage() {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (res.ok) {
-        const data = await res.json()
-        setHistory(data)
+        const data = await res.json().catch(() => null)
+        if (data && Array.isArray(data)) {
+          setHistory(data)
+        }
       }
     } catch (err) {
       console.error('Error fetching history:', err)
@@ -300,9 +302,9 @@ export default function SendMoneyPage() {
         }),
       })
 
-      const data = await res.json()
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to generate FX quote')
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data) {
+        throw new Error(data?.error || `Failed to generate FX quote (status ${res.status}). Verify backend is running.`)
       }
 
       setQuote(data)
