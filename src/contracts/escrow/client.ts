@@ -6,6 +6,7 @@ import { getRaw1AMProvider } from '@/lib/midnight-wallet/detect'
 import { getConnectedAPI, clearCachedConnectedApi, execute1AMTransfer } from '@/lib/midnight-wallet/utils'
 import { EscrowStatus, EscrowDetails } from './types'
 import { API_URL } from '@/config'
+import { getAuthHeaders } from '@/lib/auth'
 
 function hexToBytes32(hex: string): Uint8Array {
   const clean = hex.startsWith('0x') ? hex.slice(2) : hex
@@ -92,7 +93,7 @@ export class EscrowContractClient {
     // Server-side database recording + contract state update endpoint fallback
     const res = await fetch(`${API_URL}/api/escrow/${opName}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       body: JSON.stringify(payload),
     })
 

@@ -26,10 +26,15 @@ import {
   CheckCircle2,
   XCircle,
   HelpCircle,
-  ArrowUpRight
+  ArrowUpRight,
+  Lock,
+  ShieldCheck,
+  CheckCircle
 } from 'lucide-react'
 
 import { useMidnightWallet } from '@/context/MidnightWalletContext'
+import { EscrowService } from '@/contracts/escrow/service'
+import { EscrowDetails, EscrowStatus } from '@/contracts/escrow/types'
 
 interface DBTransaction {
   id: string
@@ -118,6 +123,15 @@ export default function SendMoneyPage() {
   const [history, setHistory] = useState<DBTransaction[]>([])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
 
+  // Escrow Smart Contract States
+  const [useEscrow, setUseEscrow] = useState(false)
+  const [escrowDeadlineDays, setEscrowDeadlineDays] = useState(7)
+  const [createdEscrowId, setCreatedEscrowId] = useState<string | null>(null)
+  const [escrows, setEscrows] = useState<EscrowDetails[]>([])
+  const [isLoadingEscrows, setIsLoadingEscrows] = useState(false)
+  const [escrowActionLoading, setEscrowActionLoading] = useState<string | null>(null)
+  const [historyTab, setHistoryTab] = useState<'transfers' | 'escrow'>('transfers')
+
   // Network mismatch check
   const targetNetwork = (MIDNIGHT_NETWORK || process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK || 'preprod').toLowerCase().trim()
   const isNetworkMismatch = Boolean(network && !isNetworkCompatible(targetNetwork, network))
@@ -146,8 +160,54 @@ export default function SendMoneyPage() {
   useEffect(() => {
     if (token) {
       fetchHistory()
+      if (publicKey) {
+        fetchEscrows()
+      }
     }
   }, [token, publicKey])
+
+  const fetchEscrows = async () => {
+    if (!publicKey) return
+    setIsLoadingEscrows(true)
+    try {
+      const records = await EscrowService.fetchEscrows(publicKey)
+      setEscrows(records)
+    } catch (err) {
+      console.warn('Failed to load escrow records:', err)
+    } finally {
+      setIsLoadingEscrows(false)
+    }
+  }
+
+  const handleReleaseEscrow = async (escrowId: string) => {
+    if (!publicKey) return
+    setEscrowActionLoading(escrowId)
+    try {
+      await EscrowService.releaseEscrow(escrowId, publicKey)
+      await fetchEscrows()
+      fetchBalance()
+      alert('Escrow funds released to payee successfully!')
+    } catch (err: any) {
+      alert(err.message || 'Failed to release escrow.')
+    } finally {
+      setEscrowActionLoading(null)
+    }
+  }
+
+  const handleRefundEscrow = async (escrowId: string) => {
+    if (!publicKey) return
+    setEscrowActionLoading(escrowId)
+    try {
+      await EscrowService.refundEscrow(escrowId, publicKey)
+      await fetchEscrows()
+      fetchBalance()
+      alert('Escrow funds refunded to your wallet successfully!')
+    } catch (err: any) {
+      alert(err.message || 'Failed to refund escrow.')
+    } finally {
+      setEscrowActionLoading(null)
+    }
+  }
 
   const fetchHistory = async () => {
     if (!token) return
@@ -376,47 +436,65 @@ export default function SendMoneyPage() {
 
       let broadcastTxHash = ''
 
-      // Attempt real 1AM wallet dApp signing if connector method exists
-      const raw1AM = getRaw1AMProvider()
-      if (raw1AM) {
-        try {
-          const connectedApi = await getConnectedAPI(raw1AM, targetNetwork)
-          if (connectedApi && typeof connectedApi.makeTransfer === 'function') {
-            const amountUnits = BigInt(Math.round(parseFloat(quote.sourceAmount) * 1_000_000))
-            const transferRes = await execute1AMTransfer(connectedApi, recipient.trim(), amountUnits)
-            broadcastTxHash = transferRes?.tx || ''
-          }
-        } catch (err: any) {
-          console.warn('[1AM] Direct browser extension call returned:', err?.message)
-        }
-      }
-
-      // If extension signing was skipped or offline in dev, generate/verify through backend service
-      if (!broadcastTxHash) {
-        const txRes = await fetch(`${API_URL}/api/send-money/create-transaction`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      if (useEscrow) {
+        console.log('[ESCROW] Initiating Compact Escrow smart contract...')
+        const payerAddr = publicKey || ''
+        const escrowRes = await EscrowService.createEscrow(
+          {
+            payeeAddress: recipient.trim(),
+            amountTDust: quote.sourceAmount,
+            deadlineDays: escrowDeadlineDays,
           },
-          body: JSON.stringify({
-            recipientAddress: recipient.trim(),
-            amount: quote.sourceAmount,
-            purpose,
-            destinationCountry: 'US',
-          }),
-        })
-
-        if (!txRes.ok) {
-          setMidnightStatus('FAILED')
-          setErrorCode('BLOCKCHAIN_SUBMISSION_FAILURE')
-          const txErr = await txRes.json()
-          throw new Error(txErr.error || 'Midnight transaction construction failed.')
+          payerAddr
+        )
+        broadcastTxHash = escrowRes.txHash
+        setCreatedEscrowId(escrowRes.escrowId)
+        fetchEscrows()
+      } else {
+        // Attempt real 1AM wallet dApp signing if connector method exists
+        const raw1AM = getRaw1AMProvider()
+        if (raw1AM) {
+          try {
+            const connectedApi = await getConnectedAPI(raw1AM, targetNetwork)
+            if (connectedApi && typeof connectedApi.makeTransfer === 'function') {
+              const amountUnits = BigInt(Math.round(parseFloat(quote.sourceAmount) * 1_000_000))
+              const transferRes = await execute1AMTransfer(connectedApi, recipient.trim(), amountUnits)
+              broadcastTxHash = transferRes?.tx || ''
+            }
+          } catch (err: any) {
+            console.warn('[1AM] Direct browser extension call returned:', err?.message)
+          }
         }
 
-        const txData = await txRes.json()
-        broadcastTxHash = txData.transaction?.txHash || `0x${'e'.repeat(64)}`
+        // If extension signing was skipped or offline in dev, generate/verify through backend service
+        if (!broadcastTxHash) {
+          const txRes = await fetch(`${API_URL}/api/send-money/create-transaction`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              recipientAddress: recipient.trim(),
+              amount: quote.sourceAmount,
+              purpose,
+              destinationCountry: 'US',
+            }),
+          })
+
+          if (!txRes.ok) {
+            setMidnightStatus('FAILED')
+            setErrorCode('BLOCKCHAIN_SUBMISSION_FAILURE')
+            const txErr = await txRes.json()
+            throw new Error(txErr.error || 'Midnight transaction construction failed.')
+          }
+
+          const txData = await txRes.json()
+          broadcastTxHash = txData.transaction?.txHash || `0x${'e'.repeat(64)}`
+        }
       }
+
+      const effectivePurpose = useEscrow ? `[Escrow Protected] ${purpose}` : purpose
 
       // Submit and confirm transaction on Midnight Preprod
       await fetch(`${API_URL}/api/send-money/submit-transaction`, {
@@ -430,7 +508,7 @@ export default function SendMoneyPage() {
           txHash: broadcastTxHash,
           recipient: recipient.trim(),
           amount: quote.sourceAmount,
-          purpose,
+          purpose: effectivePurpose,
           assetType: 'tDUST',
         }),
       })
@@ -703,6 +781,58 @@ export default function SendMoneyPage() {
                   </select>
                 </div>
 
+                {/* Escrow Smart Contract Option */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-black/40 to-cyan-500/10 border border-emerald-500/20 space-y-3 font-mono">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+                        <ShieldCheck size={16} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs font-bold text-white tracking-wide">Shield with Escrow Smart Contract</h4>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
+                            Compact 0.23 ZK Vault
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-white/50 mt-0.5">
+                          Hold funds securely in Midnight smart contract until delivery confirmation
+                        </p>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer ml-3">
+                      <input
+                        type="checkbox"
+                        checked={useEscrow}
+                        onChange={(e) => setUseEscrow(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-10 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </label>
+                  </div>
+
+                  {useEscrow && (
+                    <div className="pt-3 border-t border-emerald-500/20 space-y-2 text-xs">
+                      <div className="flex justify-between items-center text-[11px]">
+                        <span className="text-white/60">Inspection & Release Period:</span>
+                        <select
+                          value={escrowDeadlineDays}
+                          onChange={(e) => setEscrowDeadlineDays(Number(e.target.value))}
+                          className="bg-black/80 border border-emerald-500/30 text-white rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:border-emerald-400 cursor-pointer"
+                        >
+                          <option value={3}>3 Days</option>
+                          <option value={7}>7 Days (Standard)</option>
+                          <option value={14}>14 Days</option>
+                          <option value={30}>30 Days</option>
+                        </select>
+                      </div>
+                      <p className="text-[10px] text-emerald-400/80 leading-relaxed bg-emerald-500/10 p-2.5 rounded-xl border border-emerald-500/20">
+                        ⚡ <strong>How it works:</strong> Your 1AM wallet deposits funds directly into the Midnight Escrow Smart Contract. The recipient cannot claim the money until you verify and click &quot;Release to Payee&quot;, or you can request a refund if obligations aren&apos;t met.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 {/* FX Quote Live Preview Card (if amount entered) */}
                 {amount && parseFloat(amount) > 0 && (
                   <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3 font-mono text-xs">
@@ -898,6 +1028,13 @@ export default function SendMoneyPage() {
                         {isQuoteExpired ? 'EXPIRED' : `${quoteTtlRemaining}s remaining`}
                       </span>
                     </div>
+
+                    {useEscrow && (
+                      <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px]">
+                        <ShieldCheck size={14} className="shrink-0 text-emerald-400" />
+                        <span>Protected by Midnight Escrow Smart Contract ({escrowDeadlineDays} Days Inspection)</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex gap-3">
@@ -930,7 +1067,7 @@ export default function SendMoneyPage() {
                     <h4 className="font-bold text-sm uppercase tracking-wider text-white">
                       {activeStep === 'COMPLIANCE' && 'Evaluating Decentralized KYC & ZK Proofs...'}
                       {activeStep === 'FUNDING' && 'Securing On-Ramp Provider Confirmation...'}
-                      {activeStep === 'BLOCKCHAIN' && 'Signing & Confirming on Midnight...'}
+                      {activeStep === 'BLOCKCHAIN' && (useEscrow ? 'Locking in Midnight Escrow Smart Contract...' : 'Signing & Confirming on Midnight...')}
                       {activeStep === 'PAYOUT' && 'Disbursing Local Rail Payout...'}
                     </h4>
                     <p className="text-xs text-white/40 mt-1">Real-time state machine transition in progress</p>
@@ -942,33 +1079,45 @@ export default function SendMoneyPage() {
               {activeStep === 'COMPLETED' && (
                 <div className="space-y-4 font-mono text-xs">
                   <div className="p-6 rounded-2xl bg-white/10 border border-white/20 text-center space-y-2">
-                    <CheckCircle2 size={36} className="text-white mx-auto" />
-                    <h4 className="font-bold text-sm text-white">Remittance Completed Successfully</h4>
+                    <CheckCircle2 size={36} className="text-emerald-400 mx-auto" />
+                    <h4 className="font-bold text-sm text-white">
+                      {useEscrow ? 'Escrow Vault Created & Funded' : 'Remittance Completed Successfully'}
+                    </h4>
                     <p className="text-[11px] text-white/60">
-                      Settled authoritatively on Midnight. Tri-party reconciliation confirmed.
+                      {useEscrow
+                        ? 'Funds are locked securely in the Midnight Compact Escrow contract. The payee cannot withdraw until you verify and click Release.'
+                        : 'Settled authoritatively on Midnight. Tri-party reconciliation confirmed.'}
                     </p>
                   </div>
 
-                  {txHash && (
-                    <div className="p-4 rounded-xl bg-black/60 border border-white/10 space-y-2">
+                  <div className="p-4 rounded-xl bg-black/60 border border-white/10 space-y-2">
+                    {createdEscrowId && (
                       <div className="flex justify-between text-white/50">
-                        <span>Midnight Block:</span>
-                        <span className="text-white font-bold">#{blockHeight || 142080}</span>
+                        <span>Escrow Vault ID:</span>
+                        <span className="text-emerald-400 font-mono font-bold">{createdEscrowId}</span>
                       </div>
-                      <div className="flex justify-between text-white/50 items-center">
-                        <span>Transaction Hash:</span>
-                        <a
-                          href={getExplorerTxUrl(txHash)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-emerald-400 hover:underline flex items-center gap-1 font-bold"
-                        >
-                          <span>{truncate(txHash)}</span>
-                          <ExternalLink size={12} />
-                        </a>
-                      </div>
-                    </div>
-                  )}
+                    )}
+                    {txHash && (
+                      <>
+                        <div className="flex justify-between text-white/50">
+                          <span>Midnight Block:</span>
+                          <span className="text-white font-bold">#{blockHeight || 142080}</span>
+                        </div>
+                        <div className="flex justify-between text-white/50 items-center">
+                          <span>Transaction Hash:</span>
+                          <a
+                            href={getExplorerTxUrl(txHash)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-emerald-400 hover:underline flex items-center gap-1 font-bold"
+                          >
+                            <span>{truncate(txHash)}</span>
+                            <ExternalLink size={12} />
+                          </a>
+                        </div>
+                      </>
+                    )}
+                  </div>
 
                   <button
                     onClick={() => {
@@ -1014,49 +1163,158 @@ export default function SendMoneyPage() {
           </div>
         )}
 
-        {/* Recent Send History Table */}
+        {/* Dual-Tab Ledger & Escrow Management */}
         <div className="mt-12">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="font-bold text-sm uppercase tracking-wider font-mono text-black/80">Recent Transfers</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setHistoryTab('transfers')}
+                className={`px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer ${
+                  historyTab === 'transfers'
+                    ? 'bg-black text-white shadow-md'
+                    : 'bg-black/5 text-black/60 hover:text-black hover:bg-black/10'
+                }`}
+              >
+                Recent Transfers
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setHistoryTab('escrow')
+                  fetchEscrows()
+                }}
+                className={`px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                  historyTab === 'escrow'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20'
+                }`}
+              >
+                <ShieldCheck size={14} />
+                <span>Escrow Smart Contracts</span>
+                {escrows.length > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20 font-mono">
+                    {escrows.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
             <button
-              onClick={fetchHistory}
-              className="text-xs font-mono text-black/60 hover:text-black flex items-center gap-1 cursor-pointer"
+              onClick={() => {
+                fetchHistory()
+                fetchEscrows()
+              }}
+              className="text-xs font-mono text-black/60 hover:text-black flex items-center gap-1 cursor-pointer self-start sm:self-auto"
             >
-              <RefreshCw size={12} className={isLoadingHistory ? 'animate-spin' : ''} />
+              <RefreshCw size={12} className={isLoadingHistory || isLoadingEscrows ? 'animate-spin' : ''} />
               <span>Refresh Ledger</span>
             </button>
           </div>
 
           <div className="bg-[#0A0A0A] border border-white/10 rounded-3xl overflow-hidden shadow-2xl text-white">
-            {history.length === 0 ? (
-              <div className="py-12 text-center text-white/30 font-mono text-xs">
-                No recent transfers recorded on Midnight
-              </div>
-            ) : (
-              <div className="divide-y divide-white/5 font-mono text-xs">
-                {history.slice(0, 5).map((tx) => (
-                  <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-white/[0.02]">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-                        <ArrowUpRight size={14} />
+            {historyTab === 'transfers' ? (
+              history.length === 0 ? (
+                <div className="py-12 text-center text-white/30 font-mono text-xs">
+                  No recent transfers recorded on Midnight
+                </div>
+              ) : (
+                <div className="divide-y divide-white/5 font-mono text-xs">
+                  {history.slice(0, 5).map((tx) => (
+                    <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-white/[0.02]">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                          <ArrowUpRight size={14} />
+                        </div>
+                        <div>
+                          <p className="font-bold text-white text-xs">{tx.purpose || 'Remittance'}</p>
+                          <p className="text-[10px] text-white/40">To: {truncate(tx.recipient_wallet)}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-bold text-white text-xs">{tx.purpose || 'Remittance'}</p>
-                        <p className="text-[10px] text-white/40">To: {truncate(tx.recipient_wallet)}</p>
-                      </div>
-                    </div>
 
-                    <div className="text-right">
-                      <p className="font-bold text-white">
-                        {tx.amount} {tx.asset_type}
-                      </p>
-                      <span className="inline-block text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">
-                        {tx.status}
-                      </span>
+                      <div className="text-right">
+                        <p className="font-bold text-white">
+                          {tx.amount} {tx.asset_type}
+                        </p>
+                        <span className="inline-block text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">
+                          {tx.status}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )
+            ) : (
+              /* Escrow Smart Contracts Tab */
+              escrows.length === 0 ? (
+                <div className="py-12 text-center space-y-2 text-white/40 font-mono text-xs">
+                  <ShieldCheck size={28} className="mx-auto text-white/20" />
+                  <p>No active escrow smart contracts found for your wallet.</p>
+                  <p className="text-[10px] text-white/25">Enable &quot;Shield with Escrow Smart Contract&quot; above to lock funds in a ZK escrow vault.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-white/5 font-mono text-xs">
+                  {escrows.map((e) => (
+                    <div key={e.id} className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-white/[0.02]">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white font-bold text-xs">{e.id}</span>
+                          <span
+                            className={`text-[9px] px-2 py-0.5 rounded-full font-bold ${
+                              e.status === EscrowStatus.RELEASED
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                : e.status === EscrowStatus.REFUNDED
+                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                            }`}
+                          >
+                            {e.statusLabel}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-white/50">
+                          <span>Payee: <span className="text-white/80">{truncate(e.payee)}</span></span>
+                          <span>Deadline: <span className="text-white/80">{e.deadlineFormatted}</span></span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4 self-end md:self-auto">
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-white font-mono">{e.amount} tDUST</p>
+                          <span className="text-[10px] text-white/40 block">Locked in Compact Vault</span>
+                        </div>
+
+                        {/* Interactive Contract Actions */}
+                        {(e.status === EscrowStatus.CREATED || e.status === EscrowStatus.FUNDED || e.status === EscrowStatus.LOCKED) && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleReleaseEscrow(e.id)}
+                              disabled={escrowActionLoading === e.id}
+                              className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-black font-bold rounded-lg text-xs transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50"
+                            >
+                              {escrowActionLoading === e.id ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : (
+                                <Check size={12} />
+                              )}
+                              <span>Release</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleRefundEscrow(e.id)}
+                              disabled={escrowActionLoading === e.id}
+                              className="px-3 py-1.5 border border-white/20 hover:border-amber-400/60 hover:text-amber-300 text-white/80 font-bold rounded-lg text-xs transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                            >
+                              <span>Refund</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
             )}
           </div>
         </div>

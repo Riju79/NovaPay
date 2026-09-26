@@ -50,14 +50,14 @@ export class EscrowService {
       // Store in backend
       await fetch(`${API_URL}/api/escrow/records`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({
           id: escrowId,
           payer: payerAddress,
           payee: params.payeeAddress,
           arbiter: params.arbiterAddress || payerAddress,
           amount: amountNum,
-          status: EscrowStatus.CREATED,
+          status: EscrowStatus.FUNDED,
           txHash,
           deadline: deadlineTimestamp,
         }),
@@ -91,7 +91,7 @@ export class EscrowService {
 
       await fetch(`${API_URL}/api/escrow/records/${escrowId}/status`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({ status: EscrowStatus.FUNDED, txHash }),
       }).catch(() => null)
 
@@ -123,7 +123,7 @@ export class EscrowService {
 
       await fetch(`${API_URL}/api/escrow/records/${escrowId}/status`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({ status: EscrowStatus.RELEASED, txHash }),
       }).catch(() => null)
 
@@ -155,7 +155,7 @@ export class EscrowService {
 
       await fetch(`${API_URL}/api/escrow/records/${escrowId}/status`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({ status: EscrowStatus.REFUNDED, txHash }),
       }).catch(() => null)
 
@@ -187,7 +187,7 @@ export class EscrowService {
 
       await fetch(`${API_URL}/api/escrow/records/${escrowId}/status`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({ status: EscrowStatus.CANCELLED, txHash }),
       }).catch(() => null)
 
@@ -219,6 +219,7 @@ export class EscrowService {
             amountBaseUnits: BigInt(Math.round((parseFloat(r.amount) || 0) * 1_000_000)),
             status: r.status,
             statusLabel: formatEscrowStatus(r.status),
+            txHash: r.txHash,
             createdAt: r.createdAt || Date.now(),
             deadline: r.deadline || Date.now() + 86400 * 7,
             createdAtFormatted: new Date((r.createdAt || Date.now()) * 1000).toLocaleDateString(),

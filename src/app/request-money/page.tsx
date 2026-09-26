@@ -26,8 +26,13 @@ import {
   Inbox,
   Send,
   Lock,
-  ChevronDown
+  ChevronDown,
+  Shield,
+  ShieldCheck
 } from 'lucide-react'
+
+import { EscrowService } from '@/contracts/escrow/service'
+import { EscrowStatus } from '@/contracts/escrow/types'
 
 interface PaymentRequest {
   id: string
@@ -80,11 +85,37 @@ export default function RequestMoneyPage() {
   const [payError, setPayError] = useState<string | null>(null)
   const [successTxHash, setSuccessTxHash] = useState<string | null>(null)
 
+  // Escrow Smart Contract States
+  const [requireEscrow, setRequireEscrow] = useState(false)
+  const [escrowActionLoading, setEscrowActionLoading] = useState<string | null>(null)
+
   // Decline execution states
   const [decliningId, setDecliningId] = useState<string | null>(null)
 
   // Receipt Modal State
   const [selectedReceipt, setSelectedReceipt] = useState<PaymentRequest | null>(null)
+
+  const handleReleaseEscrowForRequest = async (req: PaymentRequest) => {
+    if (!publicKey) return
+    setEscrowActionLoading(req.id)
+    try {
+      const escrows = await EscrowService.fetchEscrows(publicKey)
+      const matching = escrows.find(
+        (e) =>
+          e.txHash === req.transaction_hash ||
+          e.payee.toLowerCase() === req.requester_wallet.toLowerCase()
+      )
+      const targetEscrowId = matching?.id || `escrow_${req.id.slice(0, 8)}`
+      await EscrowService.releaseEscrow(targetEscrowId, publicKey)
+      await fetchRequests()
+      fetchBalance()
+      alert('Escrow funds released to payee successfully!')
+    } catch (err: any) {
+      alert(err.message || 'Failed to release escrow funds.')
+    } finally {
+      setEscrowActionLoading(null)
+    }
+  }
 
   useEffect(() => {
     if (publicKey) {
@@ -160,6 +191,11 @@ export default function RequestMoneyPage() {
 
     setIsCreatingRequest(true)
     try {
+      const effectivePurpose = requireEscrow ? `[Escrow Protected] ${purpose}` : purpose
+      const effectiveMessage = requireEscrow
+        ? `[Requires Midnight Escrow Smart Contract] ${message || ''}`.trim()
+        : message || undefined
+
       const res = await fetch(`${API_URL}/api/payment-requests`, {
         method: 'POST',
         headers: {
@@ -170,8 +206,8 @@ export default function RequestMoneyPage() {
           recipientWallet,
           amount: parseFloat(amount),
           asset,
-          purpose,
-          message: message || undefined,
+          purpose: effectivePurpose,
+          message: effectiveMessage,
           requesterWallet: publicKey,
           senderAddress: publicKey
         })
@@ -183,6 +219,7 @@ export default function RequestMoneyPage() {
         setRecipientWallet('')
         setAmount('')
         setMessage('')
+        setRequireEscrow(false)
         setIsValidAddress(null)
         // Refresh requests
         fetchRequests()
@@ -260,11 +297,31 @@ export default function RequestMoneyPage() {
 
       const amountBaseUnits = BigInt(Math.round(req.amount * 1_000_000))
 
-      // Step 2: Trigger 1AM Wallet Authentication Popup & Signature
-      setPayStep(2)
-      console.log('[PAY REQUEST] Stage 1: Triggering 1AM Wallet authentication popup...')
-      const transferRes = await execute1AMTransfer(connectedApi, req.requester_wallet.trim(), amountBaseUnits)
-      const canonicalTxHash = transferRes?.tx || ''
+      let canonicalTxHash = ''
+      const isEscrowRequest = Boolean(
+        req.purpose?.toLowerCase().includes('[escrow') ||
+        req.message?.toLowerCase().includes('escrow')
+      )
+
+      if (isEscrowRequest) {
+        setPayStep(2)
+        console.log('[PAY REQUEST] Escrow Protection active: Creating & funding Escrow smart contract...')
+        const escrowRes = await EscrowService.createEscrow(
+          {
+            payeeAddress: req.requester_wallet.trim(),
+            amountTDust: String(req.amount),
+            deadlineDays: 7,
+          },
+          publicKey
+        )
+        canonicalTxHash = escrowRes.txHash
+      } else {
+        // Step 2: Trigger 1AM Wallet Authentication Popup & Signature
+        setPayStep(2)
+        console.log('[PAY REQUEST] Stage 1: Triggering 1AM Wallet authentication popup...')
+        const transferRes = await execute1AMTransfer(connectedApi, req.requester_wallet.trim(), amountBaseUnits)
+        canonicalTxHash = transferRes?.tx || ''
+      }
 
       if (!canonicalTxHash) {
         throw new Error('No transaction hash returned from 1AM Wallet.')
@@ -559,6 +616,33 @@ export default function RequestMoneyPage() {
                 </div>
               </div>
 
+              {/* Escrow Smart Contract Protection Toggle */}
+              <div className="p-3.5 rounded-xl bg-gradient-to-br from-emerald-500/10 via-black/40 to-cyan-500/10 border border-emerald-500/20 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck size={14} className="text-emerald-400" />
+                    <span className="text-xs font-bold text-white">Require Escrow Smart Contract</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-mono font-bold border border-emerald-500/30">
+                      Compact 0.23
+                    </span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={requireEscrow}
+                      onChange={(e) => setRequireEscrow(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+                  </label>
+                </div>
+                <p className="text-[10px] text-white/50 leading-relaxed font-sans">
+                  {requireEscrow
+                    ? 'Payment will be securely held in the Midnight Escrow contract until you confirm service delivery and release the funds.'
+                    : 'Standard peer-to-peer payment request settled directly to your wallet.'}
+                </p>
+              </div>
+
               <button
                 type="submit"
                 disabled={isCreatingRequest || !recipientWallet || !amount || isValidAddress !== true}
@@ -671,6 +755,14 @@ export default function RequestMoneyPage() {
                           </span>
                         </div>
 
+                        {/* Escrow badge if protected */}
+                        {(req.purpose?.includes('[Escrow') || req.message?.includes('Escrow')) && (
+                          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-[9px] font-bold w-fit">
+                            <ShieldCheck size={11} />
+                            <span>Escrow Smart Contract</span>
+                          </div>
+                        )}
+
                         {/* Amount & Currency */}
                         <div className="flex items-baseline gap-1 pt-1">
                           <span className="text-2xl font-black">{req.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
@@ -714,10 +806,19 @@ export default function RequestMoneyPage() {
                             </button>
                             <button
                               onClick={() => handlePayRequest(req)}
-                              className="px-4.5 py-1.5 text-[10px] font-bold bg-white hover:bg-white/90 text-black rounded-lg cursor-pointer shadow-sm transition-all active:scale-95 shrink-0 flex items-center gap-1"
+                              className="px-4.5 py-1.5 text-[10px] font-bold bg-white hover:bg-white/90 text-black rounded-lg cursor-pointer shadow-sm transition-all active:scale-95 shrink-0 flex items-center gap-1.5"
                             >
-                              <Lock size={10} />
-                              <span>Pay Request</span>
+                              {(req.purpose?.includes('[Escrow') || req.message?.includes('Escrow')) ? (
+                                <>
+                                  <ShieldCheck size={12} className="text-emerald-600" />
+                                  <span>Pay via Escrow</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Lock size={10} />
+                                  <span>Pay Request</span>
+                                </>
+                              )}
                             </button>
                           </>
                         )}
@@ -730,13 +831,29 @@ export default function RequestMoneyPage() {
                         )}
 
                         {req.status === 'COMPLETED' && (
-                          <button
-                            onClick={() => setSelectedReceipt(req)}
-                            className="px-4 py-1.5 text-[10px] font-bold bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-white rounded-lg cursor-pointer transition-colors flex items-center gap-1 active:scale-95"
-                          >
-                            <FileText size={10} className="text-white/50" />
-                            <span>View Receipt</span>
-                          </button>
+                          <div className="flex items-center gap-2">
+                            {(req.purpose?.includes('[Escrow') || req.message?.includes('Escrow')) && isIncoming && (
+                              <button
+                                onClick={() => handleReleaseEscrowForRequest(req)}
+                                disabled={escrowActionLoading === req.id}
+                                className="px-3 py-1.5 text-[10px] font-bold bg-emerald-500 hover:bg-emerald-400 text-black rounded-lg cursor-pointer transition-colors flex items-center gap-1 active:scale-95 disabled:opacity-50"
+                              >
+                                {escrowActionLoading === req.id ? (
+                                  <Loader2 size={10} className="animate-spin" />
+                                ) : (
+                                  <Check size={10} />
+                                )}
+                                <span>Release Escrow</span>
+                              </button>
+                            )}
+                            <button
+                              onClick={() => setSelectedReceipt(req)}
+                              className="px-4 py-1.5 text-[10px] font-bold bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 text-white rounded-lg cursor-pointer transition-colors flex items-center gap-1 active:scale-95"
+                            >
+                              <FileText size={10} className="text-white/50" />
+                              <span>View Receipt</span>
+                            </button>
+                          </div>
                         )}
 
                         {req.status === 'DECLINED' && (

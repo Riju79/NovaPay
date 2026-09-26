@@ -21,6 +21,7 @@ export interface EscrowDetails {
   amountBaseUnits: bigint
   status: EscrowStatus
   statusLabel: string
+  txHash?: string
   createdAt: number
   deadline: number
   createdAtFormatted: string
