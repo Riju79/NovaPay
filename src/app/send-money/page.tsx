@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
-import { API_URL, getExplorerTxUrl, MIDNIGHT_NETWORK, MIDNIGHT_ESCROW_CONTRACT_ADDRESS, MIDNIGHT_ESCROW_VAULT_ADDRESS } from '@/config'
+import { API_URL, getExplorerTxUrl, MIDNIGHT_NETWORK, MIDNIGHT_ESCROW_CONTRACT_ADDRESS } from '@/config'
 import { getRaw1AMProvider } from '@/lib/midnight-wallet/detect'
 import { getConnectedAPI, clearCachedConnectedApi, execute1AMTransfer, isNetworkCompatible } from '@/lib/midnight-wallet/utils'
 import {
@@ -573,50 +573,19 @@ export default function SendMoneyPage() {
       let broadcastTxHash = ''
 
       if (useEscrow) {
-        console.log('[ESCROW] Initiating on-chain deposit to Escrow Vault...')
+        console.log('[ESCROW] Initiating Compact Escrow smart contract...')
         const payerAddr = publicKey || ''
-
-        // Trigger real 1AM wallet transfer to deposit funds into the Escrow Vault on Midnight Preprod!
-        const raw1AM = getRaw1AMProvider()
-        if (raw1AM) {
-          try {
-            const connectedApi = await getConnectedAPI(raw1AM, targetNetwork)
-            if (connectedApi && typeof connectedApi.makeTransfer === 'function') {
-              const amountUnits = BigInt(Math.round(parseFloat(quote.sourceAmount) * 1_000_000))
-              console.log(`[ESCROW] Triggering 1AM transfer of ${amountUnits} base units to vault: ${MIDNIGHT_ESCROW_VAULT_ADDRESS}`)
-              const transferRes = await execute1AMTransfer(connectedApi, MIDNIGHT_ESCROW_VAULT_ADDRESS, amountUnits)
-              broadcastTxHash = transferRes?.tx || ''
-            }
-          } catch (err: any) {
-            console.error('[ESCROW] 1AM vault deposit error:', err)
-            const errMsg = err?.message || String(err || '')
-            if (errMsg.toLowerCase().includes('insufficient')) {
-              setMidnightStatus('FAILED')
-              setErrorCode('INSUFFICIENT_FUNDS')
-              throw new Error('Insufficient wallet balance in your 1AM wallet to cover the escrow vault deposit + fee.')
-            }
-            if (errMsg.toLowerCase().includes('closed') || errMsg.toLowerCase().includes('cancelled') || errMsg.toLowerCase().includes('rejected')) {
-              setMidnightStatus('FAILED')
-              setErrorCode('WALLET_REJECTED')
-              throw new Error('1AM Wallet popup was closed or cancelled. Escrow funding aborted.')
-            }
-            throw err
-          }
-        }
-
         const escrowRes = await EscrowService.createEscrow(
           {
             payeeAddress: recipient.trim(),
             amountTDust: quote.sourceAmount,
             deadlineDays: escrowDeadlineDays,
           },
-          payerAddr,
-          broadcastTxHash
+          payerAddr
         )
-        broadcastTxHash = broadcastTxHash || escrowRes.txHash
+        broadcastTxHash = escrowRes.txHash
         setCreatedEscrowId(escrowRes.escrowId)
         fetchEscrows()
-        fetchBalance()
       } else {
         // Attempt real 1AM wallet dApp signing if connector method exists
         const raw1AM = getRaw1AMProvider()

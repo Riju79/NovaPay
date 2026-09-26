@@ -64,11 +64,6 @@ export const MIDNIGHT_RECURRING_CONTRACT_ADDRESS =
   process.env.NEXT_PUBLIC_MIDNIGHT_RECURRING_CONTRACT_ADDRESS ||
   '4eb12594c2ec128791af83d82aa54742009710aec55373de2106cf8781e34fa2'
 
-export const MIDNIGHT_ESCROW_VAULT_ADDRESS =
-  process.env.NEXT_PUBLIC_MIDNIGHT_ESCROW_VAULT_ADDRESS ||
-  process.env.NEXT_PUBLIC_MIDNIGHT_DEPLOYER_ADDRESS ||
-  'mn_addr_preprod1uskwg959uv845raxqytjr9df0xjmvxj54v5ld03lwr4ed9vfurcqr79l92'
-
 // ─── Explorer Deep Link Helper ────────────────────────────────────────────────
 
 export function getExplorerTxUrl(txHash: string | null | undefined): string {
