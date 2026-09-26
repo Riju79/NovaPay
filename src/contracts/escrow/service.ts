@@ -15,6 +15,7 @@ export class EscrowService {
   public static async createEscrow(
     params: CreateEscrowParams,
     payerAddress: string,
+    depositTxHash?: string,
     txManager?: TransactionManager
   ): Promise<{ escrowId: string; txHash: string }> {
     txManager?.setPreparing()
@@ -40,9 +41,14 @@ export class EscrowService {
         amountTDust: params.amountTDust,
         amountBaseUnits: amountBaseUnits.toString(),
         deadlineTimestamp,
+        ...(depositTxHash ? { txHash: depositTxHash } : {}),
       }
 
-      const { txHash } = await escrowClient.submitEscrowTransaction('create', payload)
+      let txHash = depositTxHash || ''
+      if (!txHash) {
+        const clientRes = await escrowClient.submitEscrowTransaction('create', payload)
+        txHash = clientRes.txHash
+      }
       txManager?.setSubmitted(txHash)
 
       const escrowId = `escrow_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
