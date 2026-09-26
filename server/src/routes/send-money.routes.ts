@@ -8,22 +8,25 @@ import {
   getWalletBalance,
   getTransactionByHash
 } from '../controllers/send-money.controller'
-import { authenticateToken } from '../middleware/auth'
+import { authenticateToken, optionalAuthenticateToken } from '../middleware/auth'
 import { idempotencyMiddleware } from '../middleware/idempotency'
 import { validateRequestBody } from '../middleware/validation'
 
 const router = Router()
 
-// All send-money endpoints require authenticated session
-router.use(authenticateToken as any)
-
+// Recipient address validation does not require a strict JWT session.
+// Uses optionalAuthenticateToken so it can optionally identify self-transfers if a valid session exists.
 router.post(
   '/validate-recipient',
+  optionalAuthenticateToken as any,
   validateRequestBody({
     recipientAddress: { required: true, type: 'address' },
   }),
   validateRecipient as any
 )
+
+// All send-money transaction endpoints require authenticated session
+router.use(authenticateToken as any)
 
 router.post(
   '/create-transaction',

@@ -453,9 +453,13 @@ export function MidnightWalletProvider({ children }: { children: React.ReactNode
                       setAuthUser(meData)
                       return
                     }
+                  } else {
+                    clearStoredAuthTokens()
+                    setAuthToken(null)
                   }
                 } catch {
-                  // Fall through to re-authenticate
+                  clearStoredAuthTokens()
+                  setAuthToken(null)
                 }
               }
 

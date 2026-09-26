@@ -33,6 +33,7 @@ import {
 } from 'lucide-react'
 
 import { useMidnightWallet } from '@/context/MidnightWalletContext'
+import { clearStoredAuthTokens } from '@/lib/auth'
 import { EscrowService } from '@/contracts/escrow/service'
 import { EscrowDetails, EscrowStatus } from '@/contracts/escrow/types'
 
@@ -263,6 +264,14 @@ export default function SendMoneyPage() {
         setRecipientError(null)
       } else {
         const data = await res.json().catch(() => ({}))
+        // If an authentication error occurred, it is not an error with the recipient's address
+        if (res.status === 401 && (data.code === 'INVALID_TOKEN' || data.code === 'SESSION_EXPIRED' || data.code === 'UNAUTHORIZED')) {
+          clearStoredAuthTokens()
+          const isFormatOk = cleanAddress.length >= 10
+          setIsValidRecipient(isFormatOk)
+          setRecipientError(isFormatOk ? null : 'Invalid recipient address format')
+          return
+        }
         setIsValidRecipient(false)
         setRecipientError(data.error || 'Invalid Midnight wallet address')
       }
@@ -304,6 +313,10 @@ export default function SendMoneyPage() {
 
       const data = await res.json().catch(() => null)
       if (!res.ok || !data) {
+        if (res.status === 401) {
+          clearStoredAuthTokens()
+          throw new Error('Your wallet session has expired or is unauthorized. Please reconnect your 1AM wallet.')
+        }
         throw new Error(data?.error || `Failed to generate FX quote (status ${res.status}). Verify backend is running.`)
       }
 
